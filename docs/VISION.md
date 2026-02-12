@@ -335,11 +335,18 @@ interface LedgerStep {
     operationName: string;              // What operation
     params: Record<string, unknown>;    // With what parameters
   };
+  environment: ExecutionContext;         // Full runtime context
   output: DataReference;                // What came out
   code: string;                         // The actual code that executed
   durationMs: number;
   timestamp: Date;
   source: 'natural_language' | 'cql' | 'direct_manipulation';
+}
+
+interface ExecutionContext {
+  runtimeVersion: string;               // e.g. 'duckdb@1.1.3', 'pyodide@0.26.4'
+  dependencyHashes: Record<string, string>; // Pinned library versions inside runtime
+  modelArtefactHash?: string;           // Hash of model weights/artefacts if applicable
 }
 ```
 
@@ -574,17 +581,7 @@ Every engine conforms to the same interface: `init`, `execute`, `validate`, `des
 └─────────────────────────────────────────────────────────┘
 ```
 
-### Why This Is Unreplicable
-
-Microsoft can build 9 engines. They can't build an ecosystem of thousands of specialist engines contributed by domain experts worldwide. An open protocol means:
-
-- A **genomics researcher** builds a BLAST engine → every biologist on the platform can use it
-- A **financial firm** builds a proprietary risk engine → runs on their instance, sells it to others
-- A **GIS specialist** builds a spatial analysis engine → geographers never need to leave the platform
-
-The more engines exist, the more valuable the platform becomes.
-
-### Why This Is Unreplicable
+### Why This Is Hard to Copy
 
 The moat is not "Microsoft can't build a marketplace" — they can. The moat is **architectural**: incumbents cannot rebuild their computation model to support pluggable engines without starting from scratch.
 
@@ -592,7 +589,13 @@ The moat is not "Microsoft can't build a marketplace" — they can. The moat is 
 - **Power BI's atom is DAX + the semantic model.** Every query routes through their modelling layer. You cannot swap in an arbitrary compute engine (DuckDB, Pyodide, SymPy) without replacing DAX.
 - **Tableau's atom is VizQL.** Every interaction compiles to visual query algebra. You cannot add scientific computing or CQL-style pipelines without replacing the compiler.
 
-The marketplace, creator economy, and accumulated knowledge are **consequences** of this architectural decision — not the moat itself. They compound the advantage, but the root advantage is structural.
+The architectural impossibility is the root advantage. On top of it, the open protocol creates an ecosystem:
+
+- A **genomics researcher** builds a BLAST engine → every biologist on the platform can use it
+- A **financial firm** builds a proprietary risk engine → runs on their instance, sells it to others
+- A **GIS specialist** builds a spatial analysis engine → geographers never need to leave the platform
+
+The more engines exist, the more valuable the platform becomes. The marketplace, creator economy, and accumulated knowledge are **consequences** of this architectural decision — they compound the advantage, but the root advantage is structural.
 
 ### Engine Governance Model
 
@@ -608,6 +611,7 @@ The marketplace, creator economy, and accumulated knowledge are **consequences**
 **Permissioning:**
 - Engines declare their **capability requirements** in their manifest (data read, data write, network access, etc.)
 - Users are prompted to approve permissions at install time (mobile app model)
+- Permissions can be further constrained **per workspace** and **per plan execution** — an engine safe on one dataset may be unsafe on another
 - Engines that require elevated permissions (network, storage) must pass additional review
 
 **Signing and Verification:**
@@ -622,7 +626,8 @@ The marketplace, creator economy, and accumulated knowledge are **consequences**
 - Version history is immutable and auditable
 
 **Data Egress Controls:**
-- Engines cannot exfiltrate data from the workspace
+- Engines cannot exfiltrate data from the workspace by default
+- Any network access, if granted via permissions, is routed through a **registry-managed gateway** with domain allowlists, rate limits, and full request/response logging
 - All engine outputs are inspectable before being committed to the canvas
 - Audit log of all engine invocations (who, what, when, what data was accessed)
 - Enterprise tier: data classification labels, DLP rules, compliance policies
@@ -636,7 +641,37 @@ The marketplace, creator economy, and accumulated knowledge are **consequences**
 | **Community** (open) | Standard trust | Signed + sandboxed + user-approved permissions |
 | **Private** (enterprise) | Organisation-scoped | Organisation's own engines, internal review |
 
----
+### Governance in Action — Worked Example
+
+```
+Execution Plan: "Enrich customer data with industry classification"
+
+  Step 1: Tabular Engine → SELECT company_name, domain FROM customers
+          ✅ Approved — read-only, core engine
+
+  Step 2: Data Quality Engine → Standardise domain formats
+          ✅ Approved — sandboxed, no network access
+
+  Step 3: IndustryClassifier Engine (community) → Classify by SIC code
+          ⚠️  REQUIRES NETWORK ACCESS
+          │  This engine calls api.sic-lookup.com to classify domains.
+          │  Permission: network egress to api.sic-lookup.com
+          │
+          │  [✅ Allow for this plan]  [❌ Deny — use offline mode]
+          │
+          User chose: ❌ Deny
+          │
+          Agent: "I'll use the offline SIC mapping table instead.
+                  Coverage drops from ~95% to ~80% for smaller firms."
+          │
+          Step 3 (revised): IndustryClassifier Engine → Offline SIC lookup
+          ✅ Approved — no network, sandboxed
+
+  Step 4: Visualization Engine → Bar chart of customer distribution by industry
+          ✅ Approved — core engine
+```
+
+This demonstrates: per-plan permission prompts, user control over network egress, agent-provided offline alternatives, and transparent trade-off communication.
 
 ## Expertise Marketplace
 
@@ -695,9 +730,11 @@ Microsoft can copy features. They cannot copy a marketplace of domain expertise 
 
 ### The Wedge Job
 
-> **"Upload your data, ask questions in plain English, get verified answers with full transparency."**
+> **"Upload your data, ask questions in plain English, get verified answers you can inspect and replay."**
 
-That's the job. Not "replace Excel." Not "learn a new language." Not "deploy an analytics stack." Just: upload → ask → answer. Everything else — the marketplace, the engines, the CQL pipelines — is an expansion that these users discover naturally as they use the product.
+**Verified** means every result is backed by executable code, a pinned engine version, and intermediate artefacts in the computation ledger.
+
+That's the job. Not "replace Excel." Not "learn a new language." Not "deploy an analytics stack." Just: upload → ask → verified answer. Everything else — the marketplace, the engines, the CQL pipelines — is an expansion that these users discover naturally as they use the product.
 
 ### Primary Wedge: Data Analysts + Freelance Consultants
 
@@ -881,7 +918,7 @@ Once the foundational layer is complete:
 ## Project Structure
 
 ```
-lattice/
+cucumber/
 ├── src/
 │   ├── server/
 │   │   ├── index.ts
@@ -1047,24 +1084,24 @@ lattice/
 ### Not in Phase 1
 - Database/API connectors, Numerical Engine, Simulation Engine, multi-user, auth
 - Advanced direct manipulation (lasso, range select, cross-view linking)
-- Cloud deployment (Phase 1 is laptop-only)
+- Cloud deployment — Phase 1 is a **local web app** running entirely on the user's machine (browser + local dev server)
 
 ### Phase 1 Limits and Fallbacks
 
 > [!WARNING]
-> Phase 1 runs entirely client-side (browser). These are honest constraints, not aspirational targets.
+> Phase 1 runs entirely client-side (browser + local server). These are honest constraints, not aspirational targets.
+
+**Default posture:** sample or aggregate first, explicit error only when the system truly cannot proceed. Users always get a choice.
 
 | Constraint | Limit | Fallback / Mitigation |
 |---|---|---|
-| **Dataset size** | ~500K rows / ~100MB per CSV | Show clear error with guidance to split or sample |
-| **Pyodide memory** | ~2GB browser memory budget | Auto-sample for statistical operations, warn user |
-| **Iterative compute** (Monte Carlo, clustering) | ~10K iterations / 30 sec timeout | Throttle and show progress; suggest smaller N |
+| **Dataset size** | ~500K rows / ~100MB per CSV | Offer to auto-sample (e.g. random 100K rows) or let user choose subset; error only if file cannot be parsed |
+| **Pyodide memory** | ~2GB browser memory budget | Auto-sample for statistical operations; show "using N-row sample" badge on results |
+| **Iterative compute** (Monte Carlo, clustering) | ~10K iterations / 30 sec timeout | Throttle, show live progress bar; suggest smaller N with one-click accept |
 | **Concurrent engines** | 1 engine at a time (sequential chain) | Phase 2 adds parallel engine execution |
-| **Visualization points** | ~50K data points before perf degrades | Auto-aggregate or sample for charts; full data in table |
-| **LLM context** | Token limit of the LLM provider | Summarise large datasets before sending to LLM |
+| **Visualization points** | ~50K data points before perf degrades | Auto-aggregate for charts (show "aggregated" badge); full data always available in table view |
+| **LLM context** | Token limit of the LLM provider | Summarise large datasets before sending to LLM; show summary used |
 | **No server** | All compute is local | Phase 2 adds server-side compute for large datasets |
-
-For datasets > 500K rows, Phase 1 shows: *"This dataset has X rows. Phase 1 supports up to 500K rows locally. You can sample it, or wait for server-side compute in Phase 2."*
 
 ---
 
