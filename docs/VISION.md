@@ -1,6 +1,6 @@
-# Lattice — Agent-Native Universal Computation Platform
+# Cucumber — Agent-Native Universal Computation Platform
 
-> *From a child's homework to a rocket scientist's orbital mechanics. One platform. Zero formulas to learn.*
+> *From a child's homework to a rocket scientist's orbital mechanics. One platform. No syntax to learn — just your questions, your data, your domain judgement.*
 
 ---
 
@@ -10,7 +10,7 @@ Excel, Power BI, MATLAB, R, Jupyter — each is powerful, but each requires **hu
 
 In 2026, AI agents can write formulas, build models, solve equations, and compose visualizations better than most human operators. The entire UI/syntax layer that made these tools hard to build and hard to learn **becomes unnecessary**.
 
-**Lattice is what you get when you separate computation from interface, let engines do the math, and let agents run the engines.**
+**Cucumber is what you get when you separate computation from interface, let engines do the math, and let agents run the engines.**
 
 ---
 
@@ -30,13 +30,13 @@ This is the foundational design principle. Two layers, clean separation:
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Engines don't understand users. Agents don't do math. Each layer does what it's best at.**
+**Engines don't understand users. Agents don't execute heavy computation — they plan, validate, and orchestrate. Each layer does what it's best at.**
 
 ---
 
 ## The Engine Registry
 
-Seven specialized compute engines, each with a unified interface:
+Nine specialized compute engines, each with a unified interface:
 
 ```mermaid
 graph TB
@@ -54,6 +54,8 @@ graph TB
         
         subgraph "Engines"
             TE["🗄️ Tabular Engine"]
+            DQE["🧹 Data Quality Engine"]
+            DIE["🔍 Data Inspection Engine"]
             STE["📊 Statistical Engine"]
             NE["🔢 Numerical Engine"]
             SYE["∑ Symbolic Engine"]
@@ -69,7 +71,7 @@ graph TB
     SA --> ER
     VA --> ER
     NA --> ER
-    ER --> TE & STE & NE & SYE & SME & VE & NRE
+    ER --> TE & DQE & DIE & STE & NE & SYE & SME & VE & NRE
 ```
 
 ### The Unified Engine Interface
@@ -313,47 +315,77 @@ Agent plan:
 
 ---
 
-## Computation Ledger (Step-by-Step Computing)
+## Computation Ledger — The Central Product Object
 
 > [!IMPORTANT]
-> **Core concept, specifics TBD.** This section captures the intent. Design details will be refined once the engine layer is functional and we can see what steps actually look like in practice.
+> The ledger is not a log. It is the **canonical workflow object** that everything else compiles into. CQL commands, natural language queries, and direct manipulation actions all produce ledger entries. The ledger is what makes Cucumber reproducible, inspectable, and trustworthy.
 
-### The Problem
+### What the Ledger Is
 
-Even when the system *can* produce a final answer in one shot, most users want to **work step by step** — see each transformation, each intermediate result, each decision point. Steps are not chat messages; they are **computational artifacts** with inputs, outputs, and the logic connecting them.
+Every computation the system performs is recorded as a **Step** — a first-class object with:
 
-### The Persistence Dilemma
+```typescript
+interface LedgerStep {
+  id: string;
+  parentId?: string;                    // Chain to previous step
+  input: DataReference;                 // What went in
+  operation: {
+    engineId: string;                   // Which engine ran
+    engineVersion: string;              // Exact version (pinned)
+    operationName: string;              // What operation
+    params: Record<string, unknown>;    // With what parameters
+  };
+  output: DataReference;                // What came out
+  code: string;                         // The actual code that executed
+  durationMs: number;
+  timestamp: Date;
+  source: 'natural_language' | 'cql' | 'direct_manipulation';
+}
+```
 
-- **Temporary memory (session/RAM)**: Too fragile — close the tab, lose everything.
-- **Permanent storage (all steps forever)**: Too heavy — drowns in billions of intermediate calculations.
-- **What we actually need**: A middle ground where steps persist intelligently.
+Steps form **chains** — linked sequences where each step's output feeds the next step's input. A chain is a complete, replayable pipeline.
 
-### Intended Design Direction
+### CQL as a View Over the Ledger
 
-**"Step" as a first-class object** — every computation the system performs is a Step with:
-- Input (what went in)
-- Operation (what engine ran, what code executed)
-- Output (what came out)
-- Parent step link (what step preceded this one — forming chains)
+CQL is not a standalone language that gets interpreted opaquely. **Every CQL command compiles to explicit ledger entries:**
 
-**Tiered retention** (model TBD):
-- Steps are always captured during a session
-- Important steps persist beyond the session
-- Intermediate/exploratory steps can be pruned
-- Users can pin steps to keep them permanently
-- The system could auto-classify step importance based on signals (user interaction, canvas output, dead-end vs. productive)
+```
+CQL command:
+  LOAD sales.csv | CLEAN nulls, duplicates | GROUP BY region | CHART bar
 
-**UI implications** (to be designed):
-- Canvas shows step chains, not just final outputs
-- Users can navigate back to any step, modify it, and see downstream effects
-- Steps are visual, interactive, and navigable — not just a log
+Compiles to ledger chain:
+  Step 1: Tabular Engine → LOAD sales.csv → 12,847 rows
+  Step 2: Data Quality Engine → DROP NULL revenue (47 rows) → 12,800 rows
+  Step 3: Data Quality Engine → DEDUP on order_id (12 rows) → 12,788 rows
+  Step 4: Tabular Engine → GROUP BY region, SUM(revenue)→ 6 rows
+  Step 5: Visualization Engine → bar chart spec → rendered
 
-### Open Questions (for future design)
-- Exact storage tiers and retention policies
-- Step branching model (fork at step 3, explore two paths)
-- Step chain visualization on canvas
-- Compression/summarization of archived step chains
-- How agents decide which steps are "important"
+Each step shows:
+  • The exact code that ran (SQL, Python, etc.)
+  • The exact engine version used
+  • Input/output data at each stage (inspectable)
+```
+
+This solves the **"what exactly ran?" trust problem**:
+- Users can click any step and see the code, data, and engine version
+- Pipelines are reproducible artefacts, not ephemeral interpreted text
+- Pinning engine versions guarantees the same CQL command produces the same result
+
+### Persistence Model
+
+| Tier | Retention | Examples |
+|---|---|---|
+| **Session** | Duration of workspace session | Exploratory queries, dead-end steps |
+| **Pinned** | Permanent until user deletes | Steps the user explicitly pins |
+| **Pipeline** | Permanent — part of a saved CQL recipe | Steps that form a reusable workflow |
+| **Canvas** | Permanent — committed to workspace | Steps whose output is on the canvas |
+
+### Step Branching
+
+Users can **fork** at any step — take a different path without losing the original:
+- "What if I use median instead of mean at step 3?" → fork → explore → compare
+- Both branches are preserved in the ledger
+- Canvas can show side-by-side comparison of branch outputs
 
 ---
 
@@ -511,11 +543,11 @@ Same chat interface, same canvas. The system adapts to who's using it:
 
 ## Open Engine Protocol
 
-> The engine registry isn't just internal architecture — it's a **public protocol**. Anyone can build an engine. This transforms Cucumber Maths from a product into a platform.
+> The engine registry isn't just internal architecture — it's a **public protocol**. Anyone can build an engine. This transforms Cucumber from a product into a platform.
 
 ### The Standard
 
-Every engine conforms to the same interface: `init`, `execute`, `validate`, `describe`, `dispose`. This interface is a published specification. Third-party developers can build engines that plug into any Cucumber Maths instance.
+Every engine conforms to the same interface: `init`, `execute`, `validate`, `describe`, `dispose`. This interface is a published specification. Third-party developers can build engines that plug into any Cucumber instance.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -550,7 +582,59 @@ Microsoft can build 9 engines. They can't build an ecosystem of thousands of spe
 - A **financial firm** builds a proprietary risk engine → runs on their instance, sells it to others
 - A **GIS specialist** builds a spatial analysis engine → geographers never need to leave the platform
 
-The more engines exist, the more valuable the platform becomes. Incumbents can't replicate this because their architecture doesn't have a pluggable engine layer.
+The more engines exist, the more valuable the platform becomes.
+
+### Why This Is Unreplicable
+
+The moat is not "Microsoft can't build a marketplace" — they can. The moat is **architectural**: incumbents cannot rebuild their computation model to support pluggable engines without starting from scratch.
+
+- **Excel's atom is the cell.** Every formula, format, and macro routes through cell references. You cannot make a cell-based system into a pluggable engine registry without replacing the cell.
+- **Power BI's atom is DAX + the semantic model.** Every query routes through their modelling layer. You cannot swap in an arbitrary compute engine (DuckDB, Pyodide, SymPy) without replacing DAX.
+- **Tableau's atom is VizQL.** Every interaction compiles to visual query algebra. You cannot add scientific computing or CQL-style pipelines without replacing the compiler.
+
+The marketplace, creator economy, and accumulated knowledge are **consequences** of this architectural decision — not the moat itself. They compound the advantage, but the root advantage is structural.
+
+### Engine Governance Model
+
+> [!CAUTION]
+> Third-party engines touch user data. Without governance, the open protocol becomes an unmoderated plugin ecosystem. This section is **non-negotiable** before any third-party engine runs on any user's data.
+
+**Sandboxing:**
+- Every engine runs in an **isolated execution context** (WebAssembly sandbox for client-side, container isolation for server-side)
+- Engines cannot access filesystem, network, or other engine state directly
+- All data access is mediated by the Engine Registry — engines receive data inputs and return structured outputs
+- Memory and CPU limits enforced per engine invocation
+
+**Permissioning:**
+- Engines declare their **capability requirements** in their manifest (data read, data write, network access, etc.)
+- Users are prompted to approve permissions at install time (mobile app model)
+- Engines that require elevated permissions (network, storage) must pass additional review
+
+**Signing and Verification:**
+- All marketplace and community engines must be **cryptographically signed** by their author
+- Built-in engines are signed by the core team
+- Engine code is **content-addressed** (hash-verified) — the code that ran is provably the code that was reviewed
+
+**Version Pinning and Reproducibility:**
+- Every computation ledger entry records the **exact engine version** used
+- Pipelines can be pinned to specific engine versions → guaranteed reproducibility
+- Engine updates are opt-in — existing pipelines don't break from upstream changes
+- Version history is immutable and auditable
+
+**Data Egress Controls:**
+- Engines cannot exfiltrate data from the workspace
+- All engine outputs are inspectable before being committed to the canvas
+- Audit log of all engine invocations (who, what, when, what data was accessed)
+- Enterprise tier: data classification labels, DLP rules, compliance policies
+
+**Review Tiers:**
+
+| Tier | Trust Level | Requirements |
+|---|---|---|
+| **Core** (built-in) | Fully trusted | Built and maintained by the core team |
+| **Verified** (marketplace) | High trust | Code review + signed + tested + community rating |
+| **Community** (open) | Standard trust | Signed + sandboxed + user-approved permissions |
+| **Private** (enterprise) | Organisation-scoped | Organisation's own engines, internal review |
 
 ---
 
@@ -601,13 +685,19 @@ The more engines exist, the more valuable the platform becomes. Incumbents can't
 3. **Organizational knowledge** — companies build internal CQL recipes that become institutional knowledge. Switching platforms means losing years of accumulated analytical workflows.
 4. **Network effects** — more creators → more assets → more users → more creators. Classic platform flywheel.
 
-Microsoft can copy features. They cannot copy a marketplace of domain expertise that took years to accumulate.
+Microsoft can copy features. They cannot copy a marketplace of domain expertise that took years to accumulate, built on an architectural foundation they cannot replicate without starting from scratch (see **Why This Is Unreplicable** in the Open Engine Protocol section above).
 
 ---
 
 ## Wedge Market — Day-One Users
 
 > The platform's destination is everyone who computes. But the **starting point** is specific.
+
+### The Wedge Job
+
+> **"Upload your data, ask questions in plain English, get verified answers with full transparency."**
+
+That's the job. Not "replace Excel." Not "learn a new language." Not "deploy an analytics stack." Just: upload → ask → answer. Everything else — the marketplace, the engines, the CQL pipelines — is an expansion that these users discover naturally as they use the product.
 
 ### Primary Wedge: Data Analysts + Freelance Consultants
 
@@ -898,7 +988,7 @@ lattice/
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  ◆ Lattice                                                   │
+│  ◆ Cucumber                                                  │
 ├────────────────┬─────────────────────────────────────────────┤
 │  💬 CHAT       │  📊 CANVAS                                  │
 │                │                                             │
@@ -958,6 +1048,23 @@ lattice/
 - Database/API connectors, Numerical Engine, Simulation Engine, multi-user, auth
 - Advanced direct manipulation (lasso, range select, cross-view linking)
 - Cloud deployment (Phase 1 is laptop-only)
+
+### Phase 1 Limits and Fallbacks
+
+> [!WARNING]
+> Phase 1 runs entirely client-side (browser). These are honest constraints, not aspirational targets.
+
+| Constraint | Limit | Fallback / Mitigation |
+|---|---|---|
+| **Dataset size** | ~500K rows / ~100MB per CSV | Show clear error with guidance to split or sample |
+| **Pyodide memory** | ~2GB browser memory budget | Auto-sample for statistical operations, warn user |
+| **Iterative compute** (Monte Carlo, clustering) | ~10K iterations / 30 sec timeout | Throttle and show progress; suggest smaller N |
+| **Concurrent engines** | 1 engine at a time (sequential chain) | Phase 2 adds parallel engine execution |
+| **Visualization points** | ~50K data points before perf degrades | Auto-aggregate or sample for charts; full data in table |
+| **LLM context** | Token limit of the LLM provider | Summarise large datasets before sending to LLM |
+| **No server** | All compute is local | Phase 2 adds server-side compute for large datasets |
+
+For datasets > 500K rows, Phase 1 shows: *"This dataset has X rows. Phase 1 supports up to 500K rows locally. You can sample it, or wait for server-side compute in Phase 2."*
 
 ---
 
