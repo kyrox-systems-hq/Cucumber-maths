@@ -34,6 +34,13 @@ const path = require('path');
         });
         console.log('Panel Dimensions:', JSON.stringify(dimensions, null, 2));
 
+        const left = dimensions.find(d => d.id === 'left');
+        const right = dimensions.find(d => d.id === 'right');
+
+        // Expected: Left ~320px (25%), Right ~256px (20%)
+        console.log(`Left Width: ${left.width}px (Expected ~320px)`);
+        console.log(`Right Width: ${right.width}px (Expected ~256px)`);
+
         console.log('Taking screenshot...');
         const screenshotPath = path.resolve(process.cwd(), 'debug_panels.png');
         await page.screenshot({ path: screenshotPath, fullPage: true });

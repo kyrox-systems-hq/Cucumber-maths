@@ -1,5 +1,8 @@
-import { Upload, Database, BarChart3, Hash, Type, Calendar } from 'lucide-react';
+import { Upload, Database, BarChart3, Hash, Type, Calendar, Cpu, Boxes } from 'lucide-react';
 import { cn } from '@client/lib/utils';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@client/components/ui/tabs';
+
+/* ─── mock data ─── */
 
 const MOCK_DATASETS = [
     { name: 'sales_q4.csv', rows: '12,847', cols: 14, size: '2.3 MB' },
@@ -14,6 +17,20 @@ const MOCK_COLUMNS = [
     { name: 'quantity', type: 'numeric', icon: Hash, stats: 'μ 42 · σ 15.8' },
 ];
 
+const ENGINES = [
+    { id: 'tabular', emoji: '🗄️', name: 'Tabular', tech: 'DuckDB', status: 'active' as const },
+    { id: 'data-quality', emoji: '🧹', name: 'Data Quality', tech: 'DuckDB + Pyodide', status: 'active' as const },
+    { id: 'inspection', emoji: '🔍', name: 'Inspection', tech: 'DuckDB + Viz', status: 'active' as const },
+    { id: 'statistical', emoji: '📊', name: 'Statistical', tech: 'Pyodide', status: 'planned' as const },
+    { id: 'numerical', emoji: '🔢', name: 'Numerical', tech: 'Pyodide', status: 'planned' as const },
+    { id: 'symbolic', emoji: '∑', name: 'Symbolic', tech: 'Pyodide (SymPy)', status: 'planned' as const },
+    { id: 'simulation', emoji: '🎲', name: 'Simulation', tech: 'Pyodide', status: 'planned' as const },
+    { id: 'visualization', emoji: '📈', name: 'Visualization', tech: 'Observable Plot', status: 'active' as const },
+    { id: 'narrative', emoji: '📝', name: 'Narrative', tech: 'LLM', status: 'active' as const },
+];
+
+/* ─── main component ─── */
+
 interface DataPanelProps {
     className?: string;
 }
@@ -21,73 +38,127 @@ interface DataPanelProps {
 export function DataPanel({ className }: DataPanelProps) {
     return (
         <div className={cn('flex flex-col h-full bg-card overflow-hidden', className)}>
-            {/* Panel header */}
-            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border shrink-0">
-                <Database className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-sm font-semibold">Data</span>
-            </div>
-
-            <div className="flex-1 overflow-y-auto">
-                {/* Upload zone */}
-                <div className="px-3 pt-3 pb-1">
-                    <div className="rounded-[10px] border border-dashed border-border hover:border-primary/40 transition-colors duration-150 p-4 flex flex-col items-center gap-2 cursor-pointer group">
-                        <Upload className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors duration-150" />
-                        <p className="text-xs text-muted-foreground text-center">
-                            Drop CSV, Parquet, or Excel
-                        </p>
-                    </div>
+            <Tabs defaultValue="sources" className="flex flex-col h-full">
+                {/* Tab header */}
+                <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border shrink-0">
+                    <TabsList className="h-7 bg-transparent p-0 gap-0.5">
+                        <TabsTrigger
+                            value="sources"
+                            className="h-6 px-2 text-[11px] rounded-md data-[state=active]:bg-accent data-[state=active]:text-foreground text-muted-foreground"
+                        >
+                            <Database className="h-3 w-3 mr-1" />
+                            Sources
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="engines"
+                            className="h-6 px-2 text-[11px] rounded-md data-[state=active]:bg-accent data-[state=active]:text-foreground text-muted-foreground"
+                        >
+                            <Cpu className="h-3 w-3 mr-1" />
+                            Engines
+                        </TabsTrigger>
+                    </TabsList>
                 </div>
 
-                {/* Datasets */}
-                <div className="px-3 pt-3">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
-                        Datasets
-                    </span>
-                    <div className="mt-1.5 space-y-0.5">
-                        {MOCK_DATASETS.map(ds => (
-                            <button
-                                key={ds.name}
-                                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left hover:bg-accent transition-colors duration-150 group"
-                            >
-                                <BarChart3 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                                <div className="min-w-0 flex-1">
-                                    <p className="text-xs font-medium truncate">{ds.name}</p>
-                                    <p className="text-[10px] text-muted-foreground font-mono">
-                                        {ds.rows} rows · {ds.cols} cols · {ds.size}
-                                    </p>
-                                </div>
-                            </button>
-                        ))}
+                {/* Sources tab — existing DataPanel content */}
+                <TabsContent value="sources" className="flex-1 mt-0 overflow-y-auto">
+                    {/* Upload zone */}
+                    <div className="px-3 pt-3 pb-1">
+                        <div className="rounded-[10px] border border-dashed border-border hover:border-primary/40 transition-colors duration-150 p-4 flex flex-col items-center gap-2 cursor-pointer group">
+                            <Upload className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors duration-150" />
+                            <p className="text-xs text-muted-foreground text-center">
+                                Drop CSV, Parquet, or Excel
+                            </p>
+                        </div>
                     </div>
-                </div>
 
-                {/* Column profiling */}
-                <div className="px-3 pt-4 pb-3">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
-                        Columns — sales_q4.csv
-                    </span>
-                    <div className="mt-1.5 space-y-0.5">
-                        {MOCK_COLUMNS.map(col => {
-                            const Icon = col.icon;
-                            return (
-                                <div
-                                    key={col.name}
-                                    className="flex items-start gap-2 px-2 py-1.5 rounded-md hover:bg-accent transition-colors duration-150"
+                    {/* Datasets */}
+                    <div className="px-3 pt-3">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
+                            Datasets
+                        </span>
+                        <div className="mt-1.5 space-y-0.5">
+                            {MOCK_DATASETS.map(ds => (
+                                <button
+                                    key={ds.name}
+                                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left hover:bg-accent transition-colors duration-150 group"
                                 >
-                                    <Icon className="h-3 w-3 text-muted-foreground mt-0.5 shrink-0" />
-                                    <div className="min-w-0">
-                                        <p className="text-xs font-medium">{col.name}</p>
-                                        <p className="text-[10px] text-muted-foreground font-mono">{col.stats}</p>
+                                    <BarChart3 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-xs font-medium truncate">{ds.name}</p>
+                                        <p className="text-[10px] text-muted-foreground font-mono">
+                                            {ds.rows} rows · {ds.cols} cols · {ds.size}
+                                        </p>
                                     </div>
-                                    <span className="ml-auto inline-flex items-center rounded-md border border-border px-1 py-0.5 text-[9px] text-muted-foreground shrink-0">
-                                        {col.type}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Column profiling */}
+                    <div className="px-3 pt-4 pb-3">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
+                            Columns — sales_q4.csv
+                        </span>
+                        <div className="mt-1.5 space-y-0.5">
+                            {MOCK_COLUMNS.map(col => {
+                                const Icon = col.icon;
+                                return (
+                                    <div
+                                        key={col.name}
+                                        className="flex items-start gap-2 px-2 py-1.5 rounded-md hover:bg-accent transition-colors duration-150"
+                                    >
+                                        <Icon className="h-3 w-3 text-muted-foreground mt-0.5 shrink-0" />
+                                        <div className="min-w-0">
+                                            <p className="text-xs font-medium">{col.name}</p>
+                                            <p className="text-[10px] text-muted-foreground font-mono">{col.stats}</p>
+                                        </div>
+                                        <span className="ml-auto inline-flex items-center rounded-md border border-border px-1 py-0.5 text-[9px] text-muted-foreground shrink-0">
+                                            {col.type}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </TabsContent>
+
+                {/* Engines tab */}
+                <TabsContent value="engines" className="flex-1 mt-0 overflow-y-auto">
+                    <div className="px-3 pt-3 pb-2">
+                        <div className="flex items-center gap-1.5 mb-3 px-1">
+                            <Boxes className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                Engine Registry
+                            </span>
+                            <span className="ml-auto text-[10px] text-muted-foreground font-mono">
+                                {ENGINES.filter(e => e.status === 'active').length}/{ENGINES.length} active
+                            </span>
+                        </div>
+                        <div className="space-y-0.5">
+                            {ENGINES.map(engine => (
+                                <div
+                                    key={engine.id}
+                                    className="flex items-center gap-2.5 px-2 py-2 rounded-md hover:bg-accent transition-colors duration-150"
+                                >
+                                    <span className="text-sm shrink-0">{engine.emoji}</span>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-xs font-medium">{engine.name}</p>
+                                        <p className="text-[10px] text-muted-foreground">{engine.tech}</p>
+                                    </div>
+                                    <span className={cn(
+                                        'inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] shrink-0',
+                                        engine.status === 'active'
+                                            ? 'bg-primary/10 text-primary'
+                                            : 'bg-muted text-muted-foreground'
+                                    )}>
+                                        {engine.status}
                                     </span>
                                 </div>
-                            );
-                        })}
+                            ))}
+                        </div>
                     </div>
-                </div>
-            </div>
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }
