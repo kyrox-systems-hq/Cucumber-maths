@@ -23,12 +23,12 @@ const BLOCK_ICONS: Record<string, typeof Table2> = {
 };
 
 const CHART_DATA = [
-    { region: 'APAC', revenue: 2400000, color: '#14B8A6' },
-    { region: 'North America', revenue: 1800000, color: '#6366F1' },
-    { region: 'Europe', revenue: 1200000, color: '#F59E0B' },
-    { region: 'LATAM', revenue: 600000, color: '#F43F5E' },
-    { region: 'MEA', revenue: 400000, color: '#38BDF8' },
-    { region: 'EMEA', revenue: 350000, color: '#8B5CF6' },
+    { region: 'APAC', revenue: 2400000, color: '#2E8F8C' },
+    { region: 'North America', revenue: 1800000, color: '#3F5C7A' },
+    { region: 'Europe', revenue: 1200000, color: '#5C6BC0' },
+    { region: 'LATAM', revenue: 600000, color: '#C58F2C' },
+    { region: 'MEA', revenue: 400000, color: '#A94A5A' },
+    { region: 'EMEA', revenue: 350000, color: '#64748B' },
 ];
 const MAX_REV = Math.max(...CHART_DATA.map(d => d.revenue));
 
@@ -115,7 +115,7 @@ function Metric({ value, change, positive }: { value: string; change: string; po
     return (
         <div className="flex items-end justify-between">
             <span className="text-2xl font-bold tracking-tight">{value}</span>
-            <span className={cn('inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-mono', positive ? 'bg-[--success]/10 text-[--success]' : 'bg-destructive/10 text-destructive')}>
+            <span className={cn('inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-mono', positive ? 'text-[--success]' : 'text-destructive')} style={positive ? { background: 'rgba(31,138,91,0.12)' } : { background: 'rgba(192,71,71,0.12)' }}>
                 {change}
             </span>
         </div>

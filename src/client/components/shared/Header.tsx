@@ -6,11 +6,11 @@ interface HeaderProps {
 
 export function Header({ onSwapSidebars }: HeaderProps) {
     return (
-        <header className="flex items-center justify-between h-11 px-4 border-b border-border bg-card shrink-0">
+        <header className="flex items-center justify-between h-11 px-4 border-b shrink-0" style={{ background: 'var(--glass-bg)', backdropFilter: 'var(--glass-blur)', borderColor: 'var(--glass-border)' }}>
             {/* Left: branding */}
             <div className="flex items-center gap-2.5">
                 <span className="text-base font-semibold tracking-tight">
-                    <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                    <span className="text-primary">
                         Cucumber
                     </span>
                     <span className="text-foreground/60 ml-1 font-normal">Maths</span>

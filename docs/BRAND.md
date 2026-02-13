@@ -1,13 +1,13 @@
-# Cucumber — Brand Foundation v1 (Corrected)
+# Cucumber — Brand Foundation v2 (Premium Teal Instrument)
 
-**Serial:** CUC-20260213-016
-
-## Brand Tone
+## Brand Character
 
 - Hyper-modern engineered.
 - Premium. Calm. Precise.
-- Green-led system identity.
-- No blue undertones. No fintech navy bias.
+- Energy through contrast, not saturation.
+- Instrument-grade UI.
+
+**Not** playful. **Not** fintech navy. **Not** nursery green.
 
 ---
 
@@ -15,56 +15,53 @@
 
 ### Dark Mode (Primary Identity)
 
-#### Foundations (Neutral Charcoal — No Blue Cast)
+#### Foundations (Near-Black Instrument)
 
 | Token | Value | Notes |
 |---|---|---|
-| `--bg-primary` | `#0F1112` | Page background |
-| `--bg-surface` | `#171A1C` | Cards, panels |
-| `--bg-elevated` | `#1E2226` | Hover states, raised surfaces |
+| `--bg-primary` | `#0B0C0D` | Page background |
+| `--bg-surface` | `#141617` | Cards, panels |
+| `--bg-elevated` | `#1C1F21` | Hover states, raised surfaces |
 
-These are neutral graphite tones. They must not visually lean navy.
+Neutral charcoal. No blue undertone.
 
-#### Accent (Green-Led System)
+#### Accent (Refined Teal)
 
 | Token | Value | Notes |
 |---|---|---|
-| `--accent-primary` | `#2ADDB0` | Refined Mint — primary action colour |
-| `--accent-secondary` | `#4CCFC0` | Soft Aqua — hover, secondary emphasis |
+| `--accent-primary` | `#1F6F6D` | Primary — functional, not decorative |
+| `--accent-secondary` | `#2E8F8C` | Secondary — hover, emphasis |
 
 **Rules:**
-- Mint = primary action colour
-- Aqua = hover, secondary emphasis
-- Mint is not a data colour
-- No glow effects
-- No neon saturation
+- Teal is functional, not decorative
+- No neon
+- No glow
+- No gradients as backgrounds
 
 #### Text (Neutral Greys)
 
 | Token | Value |
 |---|---|
-| `--text-primary` | `#E8ECEF` |
-| `--text-secondary` | `#A0A6AD` |
-| `--text-muted` | `#6E747B` |
+| `--text-primary` | `#E9ECEF` |
+| `--text-secondary` | `#A1A6AB` |
+| `--text-muted` | `#6E7378` |
 
-No cool-blue greys.
-
-#### States
-
-| State | Value |
-|---|---|
-| Success | `#22C55E` |
-| Warning | `#F59E0B` |
-| Error | `#EF4444` |
-| Info | `#38BDF8` |
-
-State colours remain conventional for clarity.
+Strictly neutral. No cool tint.
 
 #### Borders
 
-- Hairline: `rgba(255, 255, 255, 0.06)`
-- No heavy separators
-- No drop shadows on cards
+- `--border-hairline`: `rgba(255, 255, 255, 0.06)`
+- Subtle elevation only via tonal separation
+- No card shadows
+
+#### State Colours
+
+| State | Value | Notes |
+|---|---|---|
+| Success | `#1F8A5B` | Muted, not bright |
+| Warning | `#C58F2C` | Muted, not bright |
+| Error | `#C04747` | Muted, not bright |
+| Info | `#3A8FB7` | Muted, not bright |
 
 ---
 
@@ -75,19 +72,19 @@ State colours remain conventional for clarity.
 | Token | Value | Notes |
 |---|---|---|
 | `--bg-primary` | `#FFFFFF` | Clean white base |
-| `--bg-surface` | `#F6F7F8` | Cards, panels |
-| `--bg-elevated` | `#EEF1F3` | Hover states, raised surfaces |
+| `--bg-surface` | `#F3F5F6` | Cards, panels |
+| `--bg-elevated` | `#E9EDF0` | Hover states, raised surfaces |
 
-Clean white base. No cream. No blue tint.
+Clean white. No cream. No blue wash.
 
-#### Accent
+#### Accent (Same Teal Family)
 
 | Token | Value |
 |---|---|
-| `--accent-primary` | `#00B88A` |
-| `--accent-secondary` | `#1FC7B6` |
+| `--accent-primary` | `#1F6F6D` |
+| `--accent-secondary` | `#2E8F8C` |
 
-Same family as dark mode. Slightly toned for white background contrast.
+No mint shift between modes.
 
 #### Text
 
@@ -97,17 +94,46 @@ Same family as dark mode. Slightly toned for white background contrast.
 | `--text-secondary` | `#4B5560` |
 | `--text-muted` | `#94A3B8` |
 
-Neutral, not cool.
-
 #### Borders
 
-- Hairline: `rgba(0, 0, 0, 0.06)`
+- `--border-hairline`: `rgba(0, 0, 0, 0.06)`
+
+---
+
+## Glassmorphism System (Controlled, Premium)
+
+Glass is used **only** for: Header, Sidebars, Floating panels, Modals, Popovers.
+**Never** for charts or core content blocks.
+
+### Dark Mode Glass
+
+```css
+background: rgba(255, 255, 255, 0.04);
+backdrop-filter: blur(12px);
+border: 1px solid rgba(255, 255, 255, 0.08);
+```
+
+- Opacity under 0.06
+- Blur 10–14px
+- No colour tint in glass
+- No glow, no heavy shadow
+- Glass should feel etched and structural
+
+### Light Mode Glass
+
+```css
+background: rgba(255, 255, 255, 0.7);
+backdrop-filter: blur(10px);
+border: 1px solid rgba(0, 0, 0, 0.06);
+```
+
+Subtle. Never frosted candy.
 
 ---
 
 ## Typography
 
-### UI Font — Hanken Grotesk
+### Primary UI Font — Hanken Grotesk
 
 | Weight | Usage |
 |---|---|
@@ -115,25 +141,22 @@ Neutral, not cool.
 | 500 | Labels |
 | 600 | Headings |
 
-**Settings:**
-- Base size: 16px
+- Base: 16px
 - Body line-height: 1.55
-- Headings: 1.2 to 1.3
+- Headings: 1.2–1.3
 - No negative tracking
-- Avoid heavy bold
-- Tone: Calm. Structured. Easy on the eyes.
+- No heavy bold
+- Tone: Clean, structured, easy on the eyes.
 
 ### Mono / Ledger Font — Geist Mono
 
-**Settings:**
 - 14px
 - Line-height: 1.6
 - Code colour (dark): `#C9D1D9`
-- Ledger background (dark): `#141922`
+- Ledger background (dark): `#111315`
 - Ledger border: `rgba(255, 255, 255, 0.05)`
-- Tabular numerals required: `font-variant-numeric: tabular-nums;`
-
-Ledger must feel inspectable and serious.
+- `font-variant-numeric: tabular-nums;`
+- Ledger must feel precise and inspectable.
 
 ---
 
@@ -144,39 +167,49 @@ Ledger must feel inspectable and serious.
 | Card padding | 24px |
 | Section spacing | 32px |
 | Page spacing | 48px |
-| Radius | 10px only |
+| Border radius | 10px only |
 
 - No pills
-- No glow
+- No `rounded-full` except scrollbars if required
+- No glow effects
 - No heavy shadows
-- Minimal elevation hierarchy
 
 ---
 
 ## Motion
 
-- 150 to 200ms
+- Duration: 150–200ms
 - `ease-in-out`
-- No bounce
-- No elastic animations
-- Hover shifts subtle, 5–8% change
+- No bounce, no elastic curves
+- Hover changes subtle
+- Energy comes from crisp interaction, not animation drama
 
 ---
 
-## Data Visualisation Palette
-
-Reduced saturation, distinct from mint system colour:
+## Data Visualisation Palette (Reduced Saturation)
 
 | Name | Value |
 |---|---|
-| Teal | `#14B8A6` |
-| Indigo | `#6366F1` |
-| Amber | `#F59E0B` |
-| Rose | `#F43F5E` |
-| Sky | `#38BDF8` |
-| Violet | `#8B5CF6` |
+| Teal | `#2E8F8C` |
+| Deep Blue | `#3F5C7A` |
+| Muted Indigo | `#5C6BC0` |
+| Amber | `#C58F2C` |
+| Deep Rose | `#A94A5A` |
+| Slate | `#64748B` |
 
 **Rules:**
-- Mint is never used as dataset colour
-- Gridlines subtle
-- Avoid high-contrast neon charts
+- Accent teal not overused in charts
+- No neon series colours
+- Subtle gridlines only
+
+---
+
+## Design Principles
+
+1. Near-black charcoal base
+2. Muted teal energy
+3. White light mode foundation
+4. Controlled glass layers
+5. No saturation-driven excitement
+6. Premium through restraint
+7. **Instrument, not dashboard**

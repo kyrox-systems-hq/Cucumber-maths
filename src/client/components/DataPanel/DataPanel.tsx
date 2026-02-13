@@ -20,7 +20,7 @@ interface DataPanelProps {
 
 export function DataPanel({ className }: DataPanelProps) {
     return (
-        <div className={cn('flex flex-col h-full bg-card overflow-hidden', className)}>
+        <div className={cn('flex flex-col h-full overflow-hidden', className)} style={{ background: 'var(--glass-bg)', backdropFilter: 'var(--glass-blur)' }}>
             {/* Panel header */}
             <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border shrink-0">
                 <Database className="h-3.5 w-3.5 text-muted-foreground" />
