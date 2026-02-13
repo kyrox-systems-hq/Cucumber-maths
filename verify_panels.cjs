@@ -11,7 +11,28 @@ const path = require('path');
         await page.goto('http://localhost:5173', { waitUntil: 'networkidle' });
 
         // Wait for key elements to ensure render
-        await page.waitForTimeout(1000);
+        await page.waitForTimeout(2000);
+
+        // Log dimensions
+        const dimensions = await page.evaluate(() => {
+            const getRect = (id) => {
+                const el = document.getElementById(id);
+                if (!el) return null;
+                const rect = el.getBoundingClientRect();
+                const styles = window.getComputedStyle(el);
+                return {
+                    id,
+                    width: rect.width,
+                    height: rect.height,
+                    flexGrow: styles.flexGrow,
+                    flexShrink: styles.flexShrink,
+                    flexBasis: styles.flexBasis,
+                    display: styles.display
+                };
+            };
+            return [getRect('left'), getRect('center'), getRect('right')];
+        });
+        console.log('Panel Dimensions:', JSON.stringify(dimensions, null, 2));
 
         console.log('Taking screenshot...');
         const screenshotPath = path.resolve(process.cwd(), 'debug_panels.png');
