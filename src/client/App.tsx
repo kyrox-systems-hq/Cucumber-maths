@@ -3,6 +3,7 @@ import { DataPanel } from '@client/components/DataPanel/DataPanel';
 import { ChatPanel } from '@client/components/Chat/ChatPanel';
 import { Canvas } from '@client/components/Canvas/Canvas';
 import { useLayoutPreference } from '@client/hooks/useLayoutPreference';
+import { Group, Panel, Separator } from 'react-resizable-panels';
 
 export default function App() {
     const { chatSide, swapSidebars } = useLayoutPreference();
@@ -13,17 +14,19 @@ export default function App() {
     return (
         <div className="flex flex-col h-screen w-screen overflow-hidden bg-background text-foreground">
             <Header onSwapSidebars={swapSidebars} />
-            <div className="flex flex-1 min-h-0">
-                <aside className="w-[22%] min-w-[240px] max-w-[380px] border-r border-border overflow-hidden">
+            <Group orientation="horizontal" className="flex-1">
+                <Panel id="left" defaultSize={22} minSize={15} maxSize={35}>
                     {leftPanel}
-                </aside>
-                <main className="flex-1 min-w-0 overflow-hidden">
+                </Panel>
+                <Separator className="w-px bg-border hover:bg-primary/30 transition-colors duration-150 cursor-col-resize" />
+                <Panel id="center" defaultSize={56} minSize={30}>
                     <Canvas />
-                </main>
-                <aside className="w-[22%] min-w-[240px] max-w-[380px] border-l border-border overflow-hidden">
+                </Panel>
+                <Separator className="w-px bg-border hover:bg-primary/30 transition-colors duration-150 cursor-col-resize" />
+                <Panel id="right" defaultSize={22} minSize={15} maxSize={35}>
                     {rightPanel}
-                </aside>
-            </div>
+                </Panel>
+            </Group>
         </div>
     );
 }
