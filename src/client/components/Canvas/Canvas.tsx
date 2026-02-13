@@ -497,19 +497,22 @@ function DataInspectionTab() {
             {/* Resizable panel layout */}
             <div className="flex-1 overflow-hidden">
                 <ResizablePanelGroup orientation="horizontal" className="h-full">
-                    {panels.map((panel, i) => (
-                        <>
-                            {i > 0 && (
+                    {panels.flatMap((panel, i) => {
+                        const elements = [];
+                        if (i > 0) {
+                            elements.push(
                                 <PanelResizeHandle
                                     key={`handle-${panel.id}`}
                                     className="w-1.5 bg-transparent hover:bg-primary/20 active:bg-primary/30 transition-colors duration-150 flex items-center justify-center group"
                                 >
                                     <GripVertical className="h-4 w-4 text-muted-foreground/30 group-hover:text-primary/50 transition-colors" />
                                 </PanelResizeHandle>
-                            )}
+                            );
+                        }
+                        elements.push(
                             <ResizablePanel
                                 key={panel.id}
-                                defaultSize={100 / panels.length}
+                                id={String(panel.id)}
                                 minSize={15}
                             >
                                 <SingleDataPanel
@@ -519,8 +522,9 @@ function DataInspectionTab() {
                                     onUpdate={(updates) => updatePanel(panel.id, updates)}
                                 />
                             </ResizablePanel>
-                        </>
-                    ))}
+                        );
+                        return elements;
+                    })}
                 </ResizablePanelGroup>
             </div>
         </div>
@@ -775,15 +779,15 @@ function SingleDataPanel({
                                     key={h}
                                     onClick={() => onUpdate({ selectedColumn: panel.selectedColumn === h ? null : h })}
                                     className={cn(
-                                        'text-left py-1 px-2 text-[9px] font-semibold uppercase tracking-wider cursor-pointer transition-colors duration-150 select-none whitespace-nowrap',
+                                        'text-left py-2 px-3 text-[11px] font-semibold uppercase tracking-wider cursor-pointer transition-colors duration-150 select-none whitespace-nowrap',
                                         panel.selectedColumn === h
                                             ? 'text-primary bg-primary/5'
                                             : 'text-muted-foreground hover:text-foreground'
                                     )}
                                 >
-                                    <div className="flex items-center gap-0.5">
+                                    <div className="flex items-center gap-1">
                                         {h}
-                                        <span className="text-[7px] font-normal opacity-40">{dataset.columnTypes[hi][0]}</span>
+                                        <span className="text-[9px] font-normal opacity-50">{dataset.columnTypes[hi]}</span>
                                     </div>
                                 </th>
                             ))}
@@ -796,14 +800,14 @@ function SingleDataPanel({
                                     <td
                                         key={j}
                                         className={cn(
-                                            'py-0.5 px-2 text-[10px] whitespace-nowrap',
+                                            'py-1.5 px-3 text-xs whitespace-nowrap',
                                             dataset.columnTypes[j] === 'id' ? 'font-medium font-mono' : '',
                                             dataset.columnTypes[j] === 'numeric' ? 'font-mono text-muted-foreground' : '',
                                             cell === '' ? 'bg-destructive/5' : '',
                                             panel.selectedColumn === dataset.headers[j] ? 'bg-primary/5' : '',
                                         )}
                                     >
-                                        {cell === '' ? <span className="text-destructive text-[9px] italic">null</span> : cell}
+                                        {cell === '' ? <span className="text-destructive text-[11px] italic">null</span> : cell}
                                     </td>
                                 ))}
                             </tr>
