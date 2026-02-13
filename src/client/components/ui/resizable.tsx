@@ -5,14 +5,14 @@ import {
   Group,
   Panel,
   Separator,
-  type GroupProps,
-  type PanelProps,
-  type SeparatorProps,
 } from "react-resizable-panels"
 
 import { cn } from "@client/lib/utils"
 
-function ResizablePanelGroup({ className, ...props }: GroupProps) {
+function ResizablePanelGroup({
+  className,
+  ...props
+}: React.ComponentProps<typeof Group>) {
   return (
     <Group
       className={cn(
@@ -24,15 +24,15 @@ function ResizablePanelGroup({ className, ...props }: GroupProps) {
   )
 }
 
-function ResizablePanel({ ...props }: PanelProps) {
-  return <Panel {...props} />
-}
+const ResizablePanel = Panel
 
 function ResizableHandle({
   withHandle,
   className,
   ...props
-}: SeparatorProps & { withHandle?: boolean }) {
+}: React.ComponentProps<typeof Separator> & {
+  withHandle?: boolean
+}) {
   return (
     <Separator
       className={cn(
