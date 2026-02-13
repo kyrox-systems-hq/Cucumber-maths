@@ -1,11 +1,13 @@
-# Cucumber — Brand Foundation v1
+# Cucumber — Brand Foundation v1 (Corrected)
 
-## Positioning Tone
+**Serial:** CUC-20260213-016
 
-**Hyper-modern engineered. Premium. Calm.**
+## Brand Tone
 
-Not loud. Not crypto. Not playful SaaS.
-Feels like a serious computational system built with restraint.
+- Hyper-modern engineered.
+- Premium. Calm. Precise.
+- Green-led system identity.
+- No blue undertones. No fintech navy bias.
 
 ---
 
@@ -13,31 +15,42 @@ Feels like a serious computational system built with restraint.
 
 ### Dark Mode (Primary Identity)
 
-#### Foundations
-| Token | Value |
-|---|---|
-| `--bg-primary` | `#0E1116` |
-| `--bg-surface` | `#171C22` |
-| `--bg-elevated` | `#1F2630` |
+#### Foundations (Neutral Charcoal — No Blue Cast)
 
-#### Accent
-| Token | Value | Name |
+| Token | Value | Notes |
 |---|---|---|
-| `--accent-primary` | `#2ADDB0` | Refined Mint |
-| `--accent-secondary` | `#4CCFC0` | Soft Aqua |
+| `--bg-primary` | `#0F1112` | Page background |
+| `--bg-surface` | `#171A1C` | Cards, panels |
+| `--bg-elevated` | `#1E2226` | Hover states, raised surfaces |
 
-**Usage:**
-- Mint for primary actions and active states
-- Aqua for secondary highlights and hover
+These are neutral graphite tones. They must not visually lean navy.
 
-#### Text
+#### Accent (Green-Led System)
+
+| Token | Value | Notes |
+|---|---|---|
+| `--accent-primary` | `#2ADDB0` | Refined Mint — primary action colour |
+| `--accent-secondary` | `#4CCFC0` | Soft Aqua — hover, secondary emphasis |
+
+**Rules:**
+- Mint = primary action colour
+- Aqua = hover, secondary emphasis
+- Mint is not a data colour
+- No glow effects
+- No neon saturation
+
+#### Text (Neutral Greys)
+
 | Token | Value |
 |---|---|
-| `--text-primary` | `#E6EDF3` |
-| `--text-secondary` | `#9CA3AF` |
-| `--text-muted` | `#6B7280` |
+| `--text-primary` | `#E8ECEF` |
+| `--text-secondary` | `#A0A6AD` |
+| `--text-muted` | `#6E747B` |
+
+No cool-blue greys.
 
 #### States
+
 | State | Value |
 |---|---|
 | Success | `#22C55E` |
@@ -45,41 +58,56 @@ Feels like a serious computational system built with restraint.
 | Error | `#EF4444` |
 | Info | `#38BDF8` |
 
+State colours remain conventional for clarity.
+
 #### Borders
-- Hairline: `rgba(255,255,255,0.06)`
+
+- Hairline: `rgba(255, 255, 255, 0.06)`
+- No heavy separators
+- No drop shadows on cards
 
 ---
 
-### Light Mode
+### Light Mode (True White Foundation)
 
 #### Foundations
-| Token | Value |
-|---|---|
-| `--bg-primary` | `#F8FAFC` |
-| `--bg-surface` | `#FFFFFF` |
-| `--bg-elevated` | `#F1F5F9` |
+
+| Token | Value | Notes |
+|---|---|---|
+| `--bg-primary` | `#FFFFFF` | Clean white base |
+| `--bg-surface` | `#F6F7F8` | Cards, panels |
+| `--bg-elevated` | `#EEF1F3` | Hover states, raised surfaces |
+
+Clean white base. No cream. No blue tint.
 
 #### Accent
+
 | Token | Value |
 |---|---|
 | `--accent-primary` | `#00B88A` |
 | `--accent-secondary` | `#1FC7B6` |
 
+Same family as dark mode. Slightly toned for white background contrast.
+
 #### Text
+
 | Token | Value |
 |---|---|
-| `--text-primary` | `#0F172A` |
-| `--text-secondary` | `#475569` |
+| `--text-primary` | `#0F1418` |
+| `--text-secondary` | `#4B5560` |
 | `--text-muted` | `#94A3B8` |
 
+Neutral, not cool.
+
 #### Borders
-- Hairline: `rgba(0,0,0,0.06)`
+
+- Hairline: `rgba(0, 0, 0, 0.06)`
 
 ---
 
-## Typography System
+## Typography
 
-### Primary UI Font — Hanken Grotesk
+### UI Font — Hanken Grotesk
 
 | Weight | Usage |
 |---|---|
@@ -90,20 +118,22 @@ Feels like a serious computational system built with restraint.
 **Settings:**
 - Base size: 16px
 - Body line-height: 1.55
-- Heading line-height: 1.2 to 1.3
+- Headings: 1.2 to 1.3
 - No negative tracking
 - Avoid heavy bold
-- Tone: Calm, engineered, easy on eyes
+- Tone: Calm. Structured. Easy on the eyes.
 
 ### Mono / Ledger Font — Geist Mono
 
 **Settings:**
 - 14px
 - Line-height: 1.6
-- Code colour: `#C9D1D9`
-- Ledger background: `#141922`
-- Subtle border: `rgba(255,255,255,0.05)`
-- Ledger must feel structured and credible, not dev-toy
+- Code colour (dark): `#C9D1D9`
+- Ledger background (dark): `#141922`
+- Ledger border: `rgba(255, 255, 255, 0.05)`
+- Tabular numerals required: `font-variant-numeric: tabular-nums;`
+
+Ledger must feel inspectable and serious.
 
 ---
 
@@ -113,24 +143,29 @@ Feels like a serious computational system built with restraint.
 |---|---|
 | Card padding | 24px |
 | Section spacing | 32px |
-| Major page spacing | 48px |
-| Border radius | 10px |
+| Page spacing | 48px |
+| Radius | 10px only |
 
-**Prohibited:**
-- No pill-shaped UI
-- No glow effects
+- No pills
+- No glow
 - No heavy shadows
+- Minimal elevation hierarchy
 
-**Animation:**
-- 150–200ms
-- Ease-in-out
+---
+
+## Motion
+
+- 150 to 200ms
+- `ease-in-out`
 - No bounce
+- No elastic animations
+- Hover shifts subtle, 5–8% change
 
 ---
 
 ## Data Visualisation Palette
 
-Core data colours (reduced saturation):
+Reduced saturation, distinct from mint system colour:
 
 | Name | Value |
 |---|---|
@@ -142,16 +177,6 @@ Core data colours (reduced saturation):
 | Violet | `#8B5CF6` |
 
 **Rules:**
-- Mint is a system accent, **not** a dataset colour
-- Subtle gridlines
-- Slightly desaturated charts for eye comfort
-
----
-
-## Brand Principles
-
-1. Restraint over decoration
-2. Clarity over style
-3. Calm over intensity
-4. Engineered, not trendy
-5. Premium through spacing and discipline
+- Mint is never used as dataset colour
+- Gridlines subtle
+- Avoid high-contrast neon charts
