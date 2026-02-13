@@ -36,7 +36,7 @@ interface CanvasProps { className?: string; }
 
 export function Canvas({ className }: CanvasProps) {
     return (
-        <div className={cn('flex flex-col h-full bg-background overflow-hidden', className)}>
+        <div className={cn('flex flex-col bg-background overflow-hidden', className)}>
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-card shrink-0">
                 <span className="text-sm font-semibold">Canvas</span>
                 <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors duration-150 px-2 py-1 rounded-md hover:bg-accent">
