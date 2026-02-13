@@ -324,136 +324,413 @@ function ExecutionPreviewTab({ onApprove, onCancel }: { onApprove: () => void; o
     );
 }
 
-/* ─── Data Inspection Tab ─── */
+/* ─── Data Inspection Tab (Multi-Panel + Stats + Filters) ─── */
+
+interface DatasetDef {
+    id: string;
+    name: string;
+    headers: string[];
+    columnTypes: ('id' | 'text' | 'numeric' | 'date')[];
+    rows: string[][];
+    numericStats?: Record<string, { mean: number; median: number; mode: number; std: number; min: number; max: number; nulls: number }>;
+    categoricalStats?: Record<string, { unique: number; top: string; frequency: number }>;
+}
+
+const SAMPLE_DATASETS: DatasetDef[] = [
+    {
+        id: 'sales', name: 'sales_q4.csv',
+        headers: ['order_id', 'region', 'revenue', 'units', 'order_date', 'customer_id'],
+        columnTypes: ['id', 'text', 'numeric', 'numeric', 'date', 'id'],
+        rows: [
+            ['ORD-001', 'APAC', '$1,240', '3', '2024-10-01', 'C-4521'],
+            ['ORD-002', 'Europe', '$890', '2', '2024-10-01', 'C-1823'],
+            ['ORD-003', 'APAC', '', '1', '2024-10-02', 'C-7291'],
+            ['ORD-004', 'North America', '$2,100', '5', '2024-10-02', 'C-3847'],
+            ['ORD-005', 'LATAM', '$445', '1', '2024-10-03', 'C-9102'],
+            ['ORD-006', 'MEA', '$1,890', '4', '2024-10-03', 'C-5624'],
+        ],
+        numericStats: {
+            revenue: { mean: 1313, median: 1065, mode: 0, std: 612, min: 0, max: 2100, nulls: 1 },
+            units: { mean: 2.67, median: 2.5, mode: 1, std: 1.63, min: 1, max: 5, nulls: 0 },
+        },
+        categoricalStats: {
+            region: { unique: 5, top: 'APAC', frequency: 2 },
+        },
+    },
+    {
+        id: 'customers', name: 'customers.parquet',
+        headers: ['customer_id', 'name', 'email', 'signup_date', 'plan', 'mrr'],
+        columnTypes: ['id', 'text', 'text', 'date', 'text', 'numeric'],
+        rows: [
+            ['C-4521', 'Aria Chen', 'aria@example.com', '2024-01-15', 'Enterprise', '$2,400'],
+            ['C-1823', 'Marcus Weber', 'marcus@example.com', '2024-03-22', 'Pro', '$99'],
+            ['C-7291', 'Priya Sharma', 'priya@example.com', '2024-02-08', 'Enterprise', '$2,400'],
+            ['C-3847', 'James Liu', 'james@example.com', '2024-06-14', 'Starter', '$29'],
+            ['C-9102', 'Sofia Rodriguez', 'sofia@example.com', '2024-04-30', 'Pro', '$99'],
+        ],
+        numericStats: {
+            mrr: { mean: 1005.4, median: 99, mode: 2400, std: 1148, min: 29, max: 2400, nulls: 0 },
+        },
+        categoricalStats: {
+            plan: { unique: 3, top: 'Enterprise', frequency: 2 },
+        },
+    },
+    {
+        id: 'inventory', name: 'inventory.xlsx',
+        headers: ['sku', 'product', 'category', 'stock', 'reorder_point', 'unit_cost'],
+        columnTypes: ['id', 'text', 'text', 'numeric', 'numeric', 'numeric'],
+        rows: [
+            ['SKU-001', 'Widget A', 'Hardware', '342', '100', '$12.50'],
+            ['SKU-002', 'Gadget B', 'Electronics', '18', '50', '$89.99'],
+            ['SKU-003', 'Part C', 'Hardware', '1,204', '200', '$3.25'],
+            ['SKU-004', 'Module D', 'Electronics', '67', '30', '$145.00'],
+        ],
+        numericStats: {
+            stock: { mean: 407.75, median: 204.5, mode: 0, std: 536, min: 18, max: 1204, nulls: 0 },
+            unit_cost: { mean: 62.69, median: 51.25, mode: 0, std: 63, min: 3.25, max: 145, nulls: 0 },
+        },
+        categoricalStats: {
+            category: { unique: 2, top: 'Hardware', frequency: 2 },
+        },
+    },
+];
+
+const STAGES = [
+    { id: 'raw' as const, label: 'Raw' },
+    { id: 'cleaned' as const, label: 'Cleaned' },
+    { id: 'transformed' as const, label: 'Transformed' },
+];
+
+interface FilterChip {
+    id: string;
+    label: string;
+    column: string;
+    type: 'quick' | 'expression';
+}
+
+interface DataPanel {
+    id: number;
+    datasetId: string;
+    stage: 'raw' | 'cleaned' | 'transformed';
+    selectedColumn: string | null;
+    filters: FilterChip[];
+}
+
+let nextPanelId = 2;
 
 function DataInspectionTab() {
-    const [stage, setStage] = useState<'raw' | 'cleaned' | 'transformed'>('raw');
+    const [panels, setPanels] = useState<DataPanel[]>([
+        { id: 1, datasetId: 'sales', stage: 'raw', selectedColumn: null, filters: [] },
+    ]);
 
-    const stages = [
-        { id: 'raw' as const, label: 'Raw', rows: '12,847', cols: '14' },
-        { id: 'cleaned' as const, label: 'Cleaned', rows: '12,800', cols: '14' },
-        { id: 'transformed' as const, label: 'Transformed', rows: '6', cols: '3' },
-    ];
+    const addPanel = () => {
+        setPanels(prev => [...prev, {
+            id: nextPanelId++,
+            datasetId: 'sales',
+            stage: 'raw',
+            selectedColumn: null,
+            filters: [],
+        }]);
+    };
 
-    const currentStage = stages.find(s => s.id === stage)!;
+    const removePanel = (id: number) => {
+        setPanels(prev => prev.length > 1 ? prev.filter(p => p.id !== id) : prev);
+    };
+
+    const updatePanel = (id: number, updates: Partial<DataPanel>) => {
+        setPanels(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+    };
+
+    // Auto-tiling: 1 panel = 1 col, 2 = 2 cols, 3 = 3 cols, 4+ = 2-col grid
+    const gridCols = panels.length === 1 ? 1 : panels.length === 3 ? 3 : 2;
 
     return (
         <div className="flex flex-col h-full">
-            {/* Stage selector */}
-            <div className="flex items-center gap-2 px-4 py-2 border-b border-border/50 shrink-0">
+            {/* Toolbar */}
+            <div className="flex items-center gap-2 px-4 py-1.5 border-b border-border/50 shrink-0">
                 <FileSearch className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Stage</span>
-                <div className="flex items-center gap-0.5 ml-1">
-                    {stages.map((s, i) => (
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Data Inspector
+                </span>
+                <span className="text-[10px] text-muted-foreground font-mono">
+                    {panels.length} {panels.length === 1 ? 'panel' : 'panels'}
+                </span>
+                <button
+                    onClick={addPanel}
+                    className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors duration-150 px-2 py-0.5 rounded-md hover:bg-accent"
+                >
+                    <Plus className="h-3 w-3" /> Add Panel
+                </button>
+            </div>
+
+            {/* Panel grid */}
+            <div
+                className="flex-1 overflow-auto p-2"
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
+                    gap: '8px',
+                    alignContent: 'start',
+                }}
+            >
+                {panels.map(panel => (
+                    <SingleDataPanel
+                        key={panel.id}
+                        panel={panel}
+                        canClose={panels.length > 1}
+                        onClose={() => removePanel(panel.id)}
+                        onUpdate={(updates) => updatePanel(panel.id, updates)}
+                    />
+                ))}
+            </div>
+        </div>
+    );
+}
+
+/* ─── Single Data Panel ─── */
+
+const QUICK_FILTERS = [
+    { id: 'above-avg', label: 'Above average', icon: '↑' },
+    { id: 'below-avg', label: 'Below average', icon: '↓' },
+    { id: 'top-10', label: 'Top 10%', icon: '⬆' },
+    { id: 'outliers', label: 'Outliers (> 2σ)', icon: '⊕' },
+    { id: 'non-null', label: 'Non-null only', icon: '∅' },
+];
+
+function SingleDataPanel({
+    panel,
+    canClose,
+    onClose,
+    onUpdate,
+}: {
+    panel: DataPanel;
+    canClose: boolean;
+    onClose: () => void;
+    onUpdate: (updates: Partial<DataPanel>) => void;
+}) {
+    const [filterInput, setFilterInput] = useState('');
+    const [showFilters, setShowFilters] = useState(false);
+
+    const dataset = SAMPLE_DATASETS.find(d => d.id === panel.datasetId) ?? SAMPLE_DATASETS[0];
+
+    const addQuickFilter = (qf: typeof QUICK_FILTERS[0]) => {
+        if (!panel.selectedColumn) return;
+        const chip: FilterChip = {
+            id: `${qf.id}-${panel.selectedColumn}-${Date.now()}`,
+            label: `${panel.selectedColumn} ${qf.label}`,
+            column: panel.selectedColumn,
+            type: 'quick',
+        };
+        onUpdate({ filters: [...panel.filters, chip] });
+    };
+
+    const addExpressionFilter = () => {
+        if (!filterInput.trim()) return;
+        const chip: FilterChip = {
+            id: `expr-${Date.now()}`,
+            label: filterInput.trim(),
+            column: '*',
+            type: 'expression',
+        };
+        onUpdate({ filters: [...panel.filters, chip] });
+        setFilterInput('');
+    };
+
+    const removeFilter = (id: string) => {
+        onUpdate({ filters: panel.filters.filter(f => f.id !== id) });
+    };
+
+    const selectedStats = panel.selectedColumn && dataset.numericStats?.[panel.selectedColumn];
+    const selectedCatStats = panel.selectedColumn && dataset.categoricalStats?.[panel.selectedColumn];
+
+    return (
+        <div className="rounded-[10px] border border-border/50 bg-card flex flex-col overflow-hidden min-h-[200px]">
+            {/* Panel header: dataset + stage + close */}
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 border-b border-border/30 bg-muted/20 shrink-0">
+                <select
+                    value={panel.datasetId}
+                    onChange={e => onUpdate({ datasetId: e.target.value, selectedColumn: null, filters: [] })}
+                    className="bg-transparent text-[11px] font-medium text-foreground outline-none cursor-pointer truncate max-w-[120px]"
+                >
+                    {SAMPLE_DATASETS.map(ds => (
+                        <option key={ds.id} value={ds.id}>{ds.name}</option>
+                    ))}
+                </select>
+                <span className="text-border">·</span>
+                <div className="flex items-center gap-0.5">
+                    {STAGES.map((s, i) => (
                         <div key={s.id} className="flex items-center">
                             <button
-                                onClick={() => setStage(s.id)}
+                                onClick={() => onUpdate({ stage: s.id })}
                                 className={cn(
-                                    'px-2 py-0.5 rounded-md text-[11px] transition-colors duration-150',
-                                    stage === s.id
+                                    'px-1.5 py-0.5 rounded text-[10px] transition-colors duration-150',
+                                    panel.stage === s.id
                                         ? 'bg-primary/10 text-primary font-medium'
                                         : 'text-muted-foreground hover:text-foreground'
                                 )}
                             >
                                 {s.label}
                             </button>
-                            {i < stages.length - 1 && <ArrowRightLeft className="h-2.5 w-2.5 text-border mx-0.5" />}
+                            {i < STAGES.length - 1 && <ArrowRightLeft className="h-2 w-2 text-border mx-0.5" />}
                         </div>
                     ))}
                 </div>
                 <span className="ml-auto text-[10px] text-muted-foreground font-mono">
-                    {currentStage.rows} rows × {currentStage.cols} cols
+                    {dataset.rows.length} rows
                 </span>
+                <button
+                    onClick={() => setShowFilters(!showFilters)}
+                    className={cn(
+                        'p-0.5 rounded transition-colors',
+                        showFilters || panel.filters.length > 0 ? 'text-primary' : 'text-muted-foreground/50 hover:text-foreground'
+                    )}
+                    title="Filters"
+                >
+                    <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1 3h14M4 8h8M6 13h4" /></svg>
+                    {panel.filters.length > 0 && (
+                        <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-primary text-[8px] text-primary-foreground flex items-center justify-center font-mono">
+                            {panel.filters.length}
+                        </span>
+                    )}
+                </button>
+                {canClose && (
+                    <button onClick={onClose} className="p-0.5 rounded text-muted-foreground/40 hover:text-destructive transition-colors" title="Close panel">
+                        <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+                    </button>
+                )}
             </div>
 
-            {/* Data preview */}
-            <div className="flex-1 overflow-auto p-4">
-                {stage === 'transformed' ? (
-                    <TransformedPreview />
+            {/* Filter bar */}
+            {showFilters && (
+                <div className="px-2.5 py-1.5 border-b border-border/30 space-y-1 shrink-0">
+                    {/* Quick filters */}
+                    <div className="flex flex-wrap gap-1">
+                        {QUICK_FILTERS.map(qf => (
+                            <button
+                                key={qf.id}
+                                onClick={() => addQuickFilter(qf)}
+                                disabled={!panel.selectedColumn}
+                                className={cn(
+                                    'inline-flex items-center gap-0.5 rounded-md border px-1.5 py-0.5 text-[9px] transition-colors duration-150',
+                                    panel.selectedColumn
+                                        ? 'border-border text-muted-foreground hover:text-foreground hover:border-primary/30'
+                                        : 'border-border/30 text-muted-foreground/30 cursor-not-allowed'
+                                )}
+                            >
+                                <span>{qf.icon}</span> {qf.label}
+                            </button>
+                        ))}
+                    </div>
+                    {/* Expression input */}
+                    <div className="flex items-center gap-1">
+                        <input
+                            type="text"
+                            value={filterInput}
+                            onChange={e => setFilterInput(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && addExpressionFilter()}
+                            placeholder="revenue > mean(revenue)"
+                            className="flex-1 bg-transparent text-[11px] text-foreground placeholder:text-muted-foreground/50 outline-none border border-border/50 rounded-md px-2 py-0.5 focus:border-primary/50"
+                        />
+                        <button
+                            onClick={addExpressionFilter}
+                            disabled={!filterInput.trim()}
+                            className="text-[10px] text-primary hover:text-primary/80 disabled:text-muted-foreground/30 transition-colors px-1"
+                        >
+                            Apply
+                        </button>
+                    </div>
+                    {/* Active filters */}
+                    {panel.filters.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-0.5">
+                            {panel.filters.map(f => (
+                                <span key={f.id} className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[9px]">
+                                    {f.label}
+                                    <button onClick={() => removeFilter(f.id)} className="hover:text-destructive transition-colors">×</button>
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                    {!panel.selectedColumn && (
+                        <p className="text-[9px] text-muted-foreground/60 italic">Click a column header to enable quick filters</p>
+                    )}
+                </div>
+            )}
+
+            {/* Data table */}
+            <div className="flex-1 overflow-auto">
+                <table className="w-full text-sm">
+                    <thead className="sticky top-0 z-10">
+                        <tr className="border-b border-border bg-muted/30">
+                            {dataset.headers.map((h, hi) => (
+                                <th
+                                    key={h}
+                                    onClick={() => onUpdate({ selectedColumn: panel.selectedColumn === h ? null : h })}
+                                    className={cn(
+                                        'text-left py-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-wider cursor-pointer transition-colors duration-150 select-none',
+                                        panel.selectedColumn === h
+                                            ? 'text-primary bg-primary/5'
+                                            : 'text-muted-foreground hover:text-foreground'
+                                    )}
+                                >
+                                    <div className="flex items-center gap-1">
+                                        {h}
+                                        <span className="text-[8px] font-normal opacity-50">{dataset.columnTypes[hi]}</span>
+                                    </div>
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {dataset.rows.map((row, i) => (
+                            <tr key={i} className="border-b border-border/20 hover:bg-accent/30 transition-colors duration-150">
+                                {row.map((cell, j) => (
+                                    <td
+                                        key={j}
+                                        className={cn(
+                                            'py-1 px-2.5 text-[11px]',
+                                            dataset.columnTypes[j] === 'id' ? 'font-medium font-mono' : '',
+                                            dataset.columnTypes[j] === 'numeric' ? 'font-mono text-muted-foreground' : '',
+                                            cell === '' ? 'bg-destructive/5' : '',
+                                            panel.selectedColumn === dataset.headers[j] ? 'bg-primary/5' : '',
+                                        )}
+                                    >
+                                        {cell === '' ? <span className="text-destructive text-[10px] italic">null</span> : cell}
+                                    </td>
+                                ))}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Stats bar */}
+            <div className="px-2.5 py-1.5 border-t border-border/30 bg-muted/10 shrink-0">
+                {selectedStats ? (
+                    <div className="flex items-center gap-3 text-[10px] font-mono text-muted-foreground overflow-x-auto">
+                        <span className="text-foreground font-medium font-sans">{panel.selectedColumn}</span>
+                        <span>μ {selectedStats.mean.toLocaleString()}</span>
+                        <span>med {selectedStats.median.toLocaleString()}</span>
+                        <span>mode {selectedStats.mode}</span>
+                        <span>σ {selectedStats.std.toLocaleString()}</span>
+                        <span>min {selectedStats.min.toLocaleString()}</span>
+                        <span>max {selectedStats.max.toLocaleString()}</span>
+                        {selectedStats.nulls > 0 && <span className="text-destructive">{selectedStats.nulls} nulls</span>}
+                    </div>
+                ) : selectedCatStats ? (
+                    <div className="flex items-center gap-3 text-[10px] font-mono text-muted-foreground">
+                        <span className="text-foreground font-medium font-sans">{panel.selectedColumn}</span>
+                        <span>{selectedCatStats.unique} unique</span>
+                        <span>top: {selectedCatStats.top}</span>
+                        <span>freq: {selectedCatStats.frequency}</span>
+                    </div>
                 ) : (
-                    <RawDataPreview stage={stage} />
+                    <p className="text-[10px] text-muted-foreground/50 italic">Click a column header to see statistics</p>
                 )}
             </div>
         </div>
     );
 }
 
-function RawDataPreview({ stage }: { stage: 'raw' | 'cleaned' }) {
-    const headers = ['order_id', 'region', 'revenue', 'units', 'order_date', 'customer_id'];
-    const rawRows = [
-        ['ORD-001', 'APAC', '$1,240', '3', '2024-10-01', 'C-4521'],
-        ['ORD-002', 'Europe', '$890', '2', '2024-10-01', 'C-1823'],
-        ['ORD-003', 'APAC', '', '1', '2024-10-02', 'C-7291'],
-        ['ORD-004', 'North America', '$2,100', '5', '2024-10-02', 'C-3847'],
-        ['ORD-005', 'LATAM', '$445', '1', '2024-10-03', 'C-9102'],
-        ['ORD-006', 'MEA', '$1,890', '4', '2024-10-03', 'C-5624'],
-    ];
-    const cleanRows = rawRows.filter(r => r[2] !== '');
-    const rows = stage === 'raw' ? rawRows : cleanRows;
-
-    return (
-        <div className="rounded-[10px] border border-border/50 overflow-hidden">
-            <table className="w-full text-sm">
-                <thead>
-                    <tr className="border-b border-border bg-muted/30">
-                        {headers.map(h => (
-                            <th key={h} className="text-left py-1.5 px-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
-                        ))}
-                    </tr>
-                </thead>
-                <tbody>
-                    {rows.map((row, i) => (
-                        <tr key={i} className="border-b border-border/20 hover:bg-accent/30 transition-colors duration-150">
-                            {row.map((cell, j) => (
-                                <td
-                                    key={j}
-                                    className={cn(
-                                        'py-1.5 px-3 text-[12px]',
-                                        j === 0 ? 'font-medium font-mono' : '',
-                                        j >= 2 && j <= 3 ? 'font-mono text-muted-foreground' : '',
-                                        cell === '' ? 'bg-destructive/5' : '',
-                                    )}
-                                >
-                                    {cell === '' ? <span className="text-destructive text-[10px] italic">null</span> : cell}
-                                </td>
-                            ))}
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-    );
-}
-
-function TransformedPreview() {
-    const headers = ['Region', 'Revenue', 'Orders'];
-    const rows = [
-        ['APAC', '$2,400,000', '4,571'],
-        ['North America', '$1,800,000', '3,426'],
-        ['Europe', '$1,200,000', '2,412'],
-        ['LATAM', '$600,000', '1,138'],
-        ['MEA', '$400,000', '782'],
-        ['EMEA', '$350,000', '518'],
-    ];
-    return (
-        <div className="rounded-[10px] border border-border/50 overflow-hidden">
-            <table className="w-full text-sm">
-                <thead>
-                    <tr className="border-b border-border bg-muted/30">
-                        {headers.map(h => <th key={h} className="text-left py-1.5 px-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>)}
-                    </tr>
-                </thead>
-                <tbody>
-                    {rows.map((row, i) => (
-                        <tr key={i} className="border-b border-border/20 hover:bg-accent/30 transition-colors duration-150">
-                            {row.map((cell, j) => <td key={j} className={cn('py-1.5 px-3 text-[12px]', j === 0 ? 'font-medium' : 'font-mono text-muted-foreground')}>{cell}</td>)}
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-    );
-}
 
 /* ─── Ledger Tab (enriched) ─── */
 
