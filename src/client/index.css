@@ -13,7 +13,7 @@
  */
 
 /* ── Tailwind v4 Theme ─────────────────────────── */
-@theme inline {
+@theme {
 
     /* Typography */
     --font-sans: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
