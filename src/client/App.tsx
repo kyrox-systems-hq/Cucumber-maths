@@ -3,11 +3,6 @@ import { DataPanel } from '@client/components/DataPanel/DataPanel';
 import { ChatPanel } from '@client/components/Chat/ChatPanel';
 import { Canvas } from '@client/components/Canvas/Canvas';
 import { useLayoutPreference } from '@client/hooks/useLayoutPreference';
-import {
-    ResizablePanelGroup,
-    ResizablePanel,
-    ResizableHandle,
-} from '@client/components/ui/resizable';
 
 export default function App() {
     const { chatSide, swapSidebars } = useLayoutPreference();
@@ -18,19 +13,17 @@ export default function App() {
     return (
         <div className="flex flex-col h-screen w-screen overflow-hidden bg-background text-foreground">
             <Header onSwapSidebars={swapSidebars} />
-            <ResizablePanelGroup orientation="horizontal" className="flex-1">
-                <ResizablePanel defaultSize={22} minSize={15} maxSize={35}>
+            <div className="flex flex-1 min-h-0">
+                <aside className="w-[22%] min-w-[240px] max-w-[380px] border-r border-border overflow-hidden">
                     {leftPanel}
-                </ResizablePanel>
-                <ResizableHandle />
-                <ResizablePanel defaultSize={56} minSize={30}>
+                </aside>
+                <main className="flex-1 min-w-0 overflow-hidden">
                     <Canvas />
-                </ResizablePanel>
-                <ResizableHandle />
-                <ResizablePanel defaultSize={22} minSize={15} maxSize={35}>
+                </main>
+                <aside className="w-[22%] min-w-[240px] max-w-[380px] border-l border-border overflow-hidden">
                     {rightPanel}
-                </ResizablePanel>
-            </ResizablePanelGroup>
+                </aside>
+            </div>
         </div>
     );
 }
