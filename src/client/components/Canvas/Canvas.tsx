@@ -1,7 +1,8 @@
-import { Plus, Table2, BarChart3, Type, Hash, Code2, Database, ListChecks, Layout, FileSearch, ArrowRightLeft, Play, MessageSquare, ClipboardCheck, ChevronRight, Eye, Pencil, Trash2, CheckCircle2 } from 'lucide-react';
+import { Plus, Table2, BarChart3, Type, Hash, Code2, Database, ListChecks, Layout, FileSearch, ArrowRightLeft, Play, MessageSquare, ClipboardCheck, ChevronRight, Eye, Pencil, Trash2, CheckCircle2, Calculator, X as XIcon, GripVertical } from 'lucide-react';
 import { cn } from '@client/lib/utils';
 import { useState } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@client/components/ui/tabs';
+import { Panel as ResizablePanel, Group as ResizablePanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 
 /* ─── types & mock data ─── */
 
@@ -408,19 +409,51 @@ interface FilterChip {
     type: 'quick' | 'expression';
 }
 
-interface DataPanel {
+interface Calculation {
+    id: string;
+    fn: string;
+    column: string;
+    label: string;
+    value: string;
+}
+
+interface DataPanelState {
     id: number;
     datasetId: string;
     stage: 'raw' | 'cleaned' | 'transformed';
     selectedColumn: string | null;
     filters: FilterChip[];
+    calculations: Calculation[];
+}
+
+const CQL_FUNCTIONS = [
+    'SUM', 'COUNT', 'AVG', 'MIN', 'MAX', 'MEDIAN',
+    'MODE', 'STDEV', 'VARIANCE', 'PERCENTILE', 'DISTINCT', 'NULLS',
+];
+
+/* Mock CQL evaluator — returns fake computed values */
+function evalCQL(fn: string, column: string, datasetId: string): string {
+    const mockResults: Record<string, Record<string, Record<string, string>>> = {
+        sales: {
+            revenue: { SUM: '$6,965', COUNT: '6', AVG: '$1,161', MIN: '$0', MAX: '$2,100', MEDIAN: '$1,065', MODE: '$0', STDEV: '$612', VARIANCE: '$374,544', PERCENTILE: '$1,890 (p90)', DISTINCT: '5', NULLS: '1' },
+            units: { SUM: '16', COUNT: '6', AVG: '2.67', MIN: '1', MAX: '5', MEDIAN: '2.5', MODE: '1', STDEV: '1.63', VARIANCE: '2.67', PERCENTILE: '4.6 (p90)', DISTINCT: '4', NULLS: '0' },
+        },
+        customers: {
+            mrr: { SUM: '$5,027', COUNT: '5', AVG: '$1,005', MIN: '$29', MAX: '$2,400', MEDIAN: '$99', MODE: '$2,400', STDEV: '$1,148', VARIANCE: '$1,317,904', PERCENTILE: '$2,400 (p90)', DISTINCT: '3', NULLS: '0' },
+        },
+        inventory: {
+            stock: { SUM: '1,631', COUNT: '4', AVG: '407.75', MIN: '18', MAX: '1,204', MEDIAN: '204.5', MODE: '—', STDEV: '536', VARIANCE: '287,296', PERCENTILE: '1,030 (p90)', DISTINCT: '4', NULLS: '0' },
+            unit_cost: { SUM: '$250.74', COUNT: '4', AVG: '$62.69', MIN: '$3.25', MAX: '$145.00', MEDIAN: '$51.25', MODE: '—', STDEV: '$63', VARIANCE: '$3,969', PERCENTILE: '$134 (p90)', DISTINCT: '4', NULLS: '0' },
+        },
+    };
+    return mockResults[datasetId]?.[column]?.[fn] ?? '—';
 }
 
 let nextPanelId = 2;
 
 function DataInspectionTab() {
-    const [panels, setPanels] = useState<DataPanel[]>([
-        { id: 1, datasetId: 'sales', stage: 'raw', selectedColumn: null, filters: [] },
+    const [panels, setPanels] = useState<DataPanelState[]>([
+        { id: 1, datasetId: 'sales', stage: 'raw', selectedColumn: null, filters: [], calculations: [] },
     ]);
 
     const addPanel = () => {
@@ -430,6 +463,7 @@ function DataInspectionTab() {
             stage: 'raw',
             selectedColumn: null,
             filters: [],
+            calculations: [],
         }]);
     };
 
@@ -437,12 +471,9 @@ function DataInspectionTab() {
         setPanels(prev => prev.length > 1 ? prev.filter(p => p.id !== id) : prev);
     };
 
-    const updatePanel = (id: number, updates: Partial<DataPanel>) => {
+    const updatePanel = (id: number, updates: Partial<DataPanelState>) => {
         setPanels(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
     };
-
-    // Auto-tiling: 1 panel = 1 col, 2 = 2 cols, 3 = 3 cols, 4+ = 2-col grid
-    const gridCols = panels.length === 1 ? 1 : panels.length === 3 ? 3 : 2;
 
     return (
         <div className="flex flex-col h-full">
@@ -463,38 +494,47 @@ function DataInspectionTab() {
                 </button>
             </div>
 
-            {/* Panel grid */}
-            <div
-                className="flex-1 overflow-auto p-2"
-                style={{
-                    display: 'grid',
-                    gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
-                    gap: '8px',
-                    alignContent: 'start',
-                }}
-            >
-                {panels.map(panel => (
-                    <SingleDataPanel
-                        key={panel.id}
-                        panel={panel}
-                        canClose={panels.length > 1}
-                        onClose={() => removePanel(panel.id)}
-                        onUpdate={(updates) => updatePanel(panel.id, updates)}
-                    />
-                ))}
+            {/* Resizable panel layout */}
+            <div className="flex-1 overflow-hidden">
+                <ResizablePanelGroup orientation="horizontal" className="h-full">
+                    {panels.map((panel, i) => (
+                        <>
+                            {i > 0 && (
+                                <PanelResizeHandle
+                                    key={`handle-${panel.id}`}
+                                    className="w-1.5 bg-transparent hover:bg-primary/20 active:bg-primary/30 transition-colors duration-150 flex items-center justify-center group"
+                                >
+                                    <GripVertical className="h-4 w-4 text-muted-foreground/30 group-hover:text-primary/50 transition-colors" />
+                                </PanelResizeHandle>
+                            )}
+                            <ResizablePanel
+                                key={panel.id}
+                                defaultSize={100 / panels.length}
+                                minSize={15}
+                            >
+                                <SingleDataPanel
+                                    panel={panel}
+                                    canClose={panels.length > 1}
+                                    onClose={() => removePanel(panel.id)}
+                                    onUpdate={(updates) => updatePanel(panel.id, updates)}
+                                />
+                            </ResizablePanel>
+                        </>
+                    ))}
+                </ResizablePanelGroup>
             </div>
         </div>
     );
 }
 
-/* ─── Single Data Panel ─── */
+/* ─── Single Data Panel (dense header + calculations tray) ─── */
 
 const QUICK_FILTERS = [
-    { id: 'above-avg', label: 'Above average', icon: '↑' },
-    { id: 'below-avg', label: 'Below average', icon: '↓' },
+    { id: 'above-avg', label: '> avg', icon: '↑' },
+    { id: 'below-avg', label: '< avg', icon: '↓' },
     { id: 'top-10', label: 'Top 10%', icon: '⬆' },
-    { id: 'outliers', label: 'Outliers (> 2σ)', icon: '⊕' },
-    { id: 'non-null', label: 'Non-null only', icon: '∅' },
+    { id: 'outliers', label: '> 2σ', icon: '⊕' },
+    { id: 'non-null', label: 'Non-null', icon: '∅' },
 ];
 
 function SingleDataPanel({
@@ -503,15 +543,18 @@ function SingleDataPanel({
     onClose,
     onUpdate,
 }: {
-    panel: DataPanel;
+    panel: DataPanelState;
     canClose: boolean;
     onClose: () => void;
-    onUpdate: (updates: Partial<DataPanel>) => void;
+    onUpdate: (updates: Partial<DataPanelState>) => void;
 }) {
     const [filterInput, setFilterInput] = useState('');
     const [showFilters, setShowFilters] = useState(false);
+    const [showCalcs, setShowCalcs] = useState(false);
+    const [calcFn, setCalcFn] = useState('SUM');
 
     const dataset = SAMPLE_DATASETS.find(d => d.id === panel.datasetId) ?? SAMPLE_DATASETS[0];
+    const numericCols = dataset.headers.filter((_, i) => dataset.columnTypes[i] === 'numeric');
 
     const addQuickFilter = (qf: typeof QUICK_FILTERS[0]) => {
         if (!panel.selectedColumn) return;
@@ -540,88 +583,158 @@ function SingleDataPanel({
         onUpdate({ filters: panel.filters.filter(f => f.id !== id) });
     };
 
+    const addCalculation = (col?: string) => {
+        const targetCol = col ?? panel.selectedColumn ?? numericCols[0];
+        if (!targetCol) return;
+        const calc: Calculation = {
+            id: `calc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            fn: calcFn,
+            column: targetCol,
+            label: `${calcFn}(${targetCol})`,
+            value: evalCQL(calcFn, targetCol, panel.datasetId),
+        };
+        onUpdate({ calculations: [...panel.calculations, calc] });
+    };
+
+    const removeCalc = (id: string) => {
+        onUpdate({ calculations: panel.calculations.filter(c => c.id !== id) });
+    };
+
     const selectedStats = panel.selectedColumn && dataset.numericStats?.[panel.selectedColumn];
     const selectedCatStats = panel.selectedColumn && dataset.categoricalStats?.[panel.selectedColumn];
 
     return (
-        <div className="rounded-[10px] border border-border/50 bg-card flex flex-col overflow-hidden min-h-[200px]">
-            {/* Panel header: dataset + stage + close */}
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 border-b border-border/30 bg-muted/20 shrink-0">
+        <div className="h-full flex flex-col overflow-hidden border-r border-border/20 last:border-r-0">
+            {/* ── Dense header row ── */}
+            <div className="flex items-center gap-1 px-2 py-1 border-b border-border/30 bg-muted/20 shrink-0 min-w-0">
+                {/* Dataset */}
                 <select
                     value={panel.datasetId}
-                    onChange={e => onUpdate({ datasetId: e.target.value, selectedColumn: null, filters: [] })}
-                    className="bg-transparent text-[11px] font-medium text-foreground outline-none cursor-pointer truncate max-w-[120px]"
+                    onChange={e => onUpdate({ datasetId: e.target.value, selectedColumn: null, filters: [], calculations: [] })}
+                    className="bg-transparent text-[10px] font-medium text-foreground outline-none cursor-pointer min-w-0 max-w-[90px] truncate"
+                    title={dataset.name}
                 >
                     {SAMPLE_DATASETS.map(ds => (
                         <option key={ds.id} value={ds.id}>{ds.name}</option>
                     ))}
                 </select>
-                <span className="text-border">·</span>
-                <div className="flex items-center gap-0.5">
-                    {STAGES.map((s, i) => (
-                        <div key={s.id} className="flex items-center">
-                            <button
-                                onClick={() => onUpdate({ stage: s.id })}
-                                className={cn(
-                                    'px-1.5 py-0.5 rounded text-[10px] transition-colors duration-150',
-                                    panel.stage === s.id
-                                        ? 'bg-primary/10 text-primary font-medium'
-                                        : 'text-muted-foreground hover:text-foreground'
-                                )}
-                            >
-                                {s.label}
-                            </button>
-                            {i < STAGES.length - 1 && <ArrowRightLeft className="h-2 w-2 text-border mx-0.5" />}
-                        </div>
+
+                {/* Stage pills — single-letter at narrow widths via CSS */}
+                <div className="flex items-center gap-px shrink-0">
+                    {STAGES.map(s => (
+                        <button
+                            key={s.id}
+                            onClick={() => onUpdate({ stage: s.id })}
+                            className={cn(
+                                'px-1 py-0.5 rounded text-[9px] transition-colors duration-150 shrink-0',
+                                panel.stage === s.id
+                                    ? 'bg-primary/10 text-primary font-medium'
+                                    : 'text-muted-foreground/60 hover:text-foreground'
+                            )}
+                            title={s.label}
+                        >
+                            {s.label[0]}
+                        </button>
                     ))}
                 </div>
-                <span className="ml-auto text-[10px] text-muted-foreground font-mono">
-                    {dataset.rows.length} rows
-                </span>
+
+                {/* Spacer */}
+                <div className="flex-1 min-w-0" />
+
+                {/* Rows count */}
+                <span className="text-[9px] text-muted-foreground/60 font-mono shrink-0">{dataset.rows.length}r</span>
+
+                {/* Action icons — always visible, never overflow */}
+                <button
+                    onClick={() => setShowCalcs(!showCalcs)}
+                    className={cn('p-0.5 rounded shrink-0 transition-colors', showCalcs || panel.calculations.length > 0 ? 'text-primary' : 'text-muted-foreground/40 hover:text-foreground')}
+                    title="Calculations"
+                >
+                    <Calculator className="h-3 w-3" />
+                </button>
                 <button
                     onClick={() => setShowFilters(!showFilters)}
-                    className={cn(
-                        'p-0.5 rounded transition-colors',
-                        showFilters || panel.filters.length > 0 ? 'text-primary' : 'text-muted-foreground/50 hover:text-foreground'
-                    )}
+                    className={cn('p-0.5 rounded shrink-0 transition-colors relative', showFilters || panel.filters.length > 0 ? 'text-primary' : 'text-muted-foreground/40 hover:text-foreground')}
                     title="Filters"
                 >
                     <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1 3h14M4 8h8M6 13h4" /></svg>
-                    {panel.filters.length > 0 && (
-                        <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-primary text-[8px] text-primary-foreground flex items-center justify-center font-mono">
-                            {panel.filters.length}
-                        </span>
-                    )}
                 </button>
                 {canClose && (
-                    <button onClick={onClose} className="p-0.5 rounded text-muted-foreground/40 hover:text-destructive transition-colors" title="Close panel">
-                        <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+                    <button onClick={onClose} className="p-0.5 rounded shrink-0 text-muted-foreground/40 hover:text-destructive transition-colors" title="Close panel">
+                        <XIcon className="h-3 w-3" />
                     </button>
                 )}
             </div>
 
-            {/* Filter bar */}
+            {/* ── Calculations tray ── */}
+            {showCalcs && (
+                <div className="px-2 py-1.5 border-b border-border/30 bg-muted/5 space-y-1 shrink-0">
+                    {/* Add calculation row */}
+                    <div className="flex items-center gap-1">
+                        <select
+                            value={calcFn}
+                            onChange={e => setCalcFn(e.target.value)}
+                            className="bg-transparent text-[10px] text-foreground outline-none border border-border/50 rounded px-1 py-0.5 cursor-pointer"
+                        >
+                            {CQL_FUNCTIONS.map(f => <option key={f} value={f}>{f}</option>)}
+                        </select>
+                        <span className="text-[10px] text-muted-foreground">(</span>
+                        <select
+                            value={panel.selectedColumn ?? numericCols[0] ?? ''}
+                            onChange={e => onUpdate({ selectedColumn: e.target.value })}
+                            className="bg-transparent text-[10px] text-foreground outline-none border border-border/50 rounded px-1 py-0.5 cursor-pointer min-w-0 max-w-[70px]"
+                        >
+                            {dataset.headers.map(h => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                        <span className="text-[10px] text-muted-foreground">)</span>
+                        <button
+                            onClick={() => addCalculation()}
+                            className="text-[9px] text-primary hover:text-primary/80 transition-colors px-1.5 py-0.5 rounded border border-primary/20 hover:border-primary/40 shrink-0"
+                        >
+                            Compute
+                        </button>
+                    </div>
+                    {/* Pinned calculations */}
+                    {panel.calculations.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                            {panel.calculations.map(c => (
+                                <span key={c.id} className="inline-flex items-center gap-1 rounded-md bg-accent/50 border border-border/30 px-1.5 py-0.5 text-[9px] font-mono">
+                                    <span className="text-muted-foreground">{c.label}</span>
+                                    <span className="text-foreground font-medium">=</span>
+                                    <span className="text-primary font-medium">{c.value}</span>
+                                    <button onClick={() => removeCalc(c.id)} className="text-muted-foreground/40 hover:text-destructive transition-colors ml-0.5">
+                                        <XIcon className="h-2.5 w-2.5" />
+                                    </button>
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                    {panel.calculations.length === 0 && (
+                        <p className="text-[9px] text-muted-foreground/50 italic">Pick a function and column, or type CQL in chat</p>
+                    )}
+                </div>
+            )}
+
+            {/* ── Filter bar ── */}
             {showFilters && (
-                <div className="px-2.5 py-1.5 border-b border-border/30 space-y-1 shrink-0">
-                    {/* Quick filters */}
-                    <div className="flex flex-wrap gap-1">
+                <div className="px-2 py-1 border-b border-border/30 space-y-1 shrink-0">
+                    <div className="flex flex-wrap gap-0.5">
                         {QUICK_FILTERS.map(qf => (
                             <button
                                 key={qf.id}
                                 onClick={() => addQuickFilter(qf)}
                                 disabled={!panel.selectedColumn}
                                 className={cn(
-                                    'inline-flex items-center gap-0.5 rounded-md border px-1.5 py-0.5 text-[9px] transition-colors duration-150',
+                                    'inline-flex items-center gap-0.5 rounded border px-1 py-px text-[8px] transition-colors duration-150',
                                     panel.selectedColumn
                                         ? 'border-border text-muted-foreground hover:text-foreground hover:border-primary/30'
                                         : 'border-border/30 text-muted-foreground/30 cursor-not-allowed'
                                 )}
                             >
-                                <span>{qf.icon}</span> {qf.label}
+                                <span>{qf.icon}</span>{qf.label}
                             </button>
                         ))}
                     </div>
-                    {/* Expression input */}
                     <div className="flex items-center gap-1">
                         <input
                             type="text"
@@ -629,34 +742,30 @@ function SingleDataPanel({
                             onChange={e => setFilterInput(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && addExpressionFilter()}
                             placeholder="revenue > mean(revenue)"
-                            className="flex-1 bg-transparent text-[11px] text-foreground placeholder:text-muted-foreground/50 outline-none border border-border/50 rounded-md px-2 py-0.5 focus:border-primary/50"
+                            className="flex-1 min-w-0 bg-transparent text-[10px] text-foreground placeholder:text-muted-foreground/50 outline-none border border-border/50 rounded px-1.5 py-0.5 focus:border-primary/50"
                         />
                         <button
                             onClick={addExpressionFilter}
                             disabled={!filterInput.trim()}
-                            className="text-[10px] text-primary hover:text-primary/80 disabled:text-muted-foreground/30 transition-colors px-1"
+                            className="text-[9px] text-primary hover:text-primary/80 disabled:text-muted-foreground/30 transition-colors px-1 shrink-0"
                         >
-                            Apply
+                            Go
                         </button>
                     </div>
-                    {/* Active filters */}
                     {panel.filters.length > 0 && (
-                        <div className="flex flex-wrap gap-1 pt-0.5">
+                        <div className="flex flex-wrap gap-0.5">
                             {panel.filters.map(f => (
-                                <span key={f.id} className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[9px]">
+                                <span key={f.id} className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 text-primary px-1.5 py-px text-[8px]">
                                     {f.label}
                                     <button onClick={() => removeFilter(f.id)} className="hover:text-destructive transition-colors">×</button>
                                 </span>
                             ))}
                         </div>
                     )}
-                    {!panel.selectedColumn && (
-                        <p className="text-[9px] text-muted-foreground/60 italic">Click a column header to enable quick filters</p>
-                    )}
                 </div>
             )}
 
-            {/* Data table */}
+            {/* ── Data table ── */}
             <div className="flex-1 overflow-auto">
                 <table className="w-full text-sm">
                     <thead className="sticky top-0 z-10">
@@ -666,15 +775,15 @@ function SingleDataPanel({
                                     key={h}
                                     onClick={() => onUpdate({ selectedColumn: panel.selectedColumn === h ? null : h })}
                                     className={cn(
-                                        'text-left py-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-wider cursor-pointer transition-colors duration-150 select-none',
+                                        'text-left py-1 px-2 text-[9px] font-semibold uppercase tracking-wider cursor-pointer transition-colors duration-150 select-none whitespace-nowrap',
                                         panel.selectedColumn === h
                                             ? 'text-primary bg-primary/5'
                                             : 'text-muted-foreground hover:text-foreground'
                                     )}
                                 >
-                                    <div className="flex items-center gap-1">
+                                    <div className="flex items-center gap-0.5">
                                         {h}
-                                        <span className="text-[8px] font-normal opacity-50">{dataset.columnTypes[hi]}</span>
+                                        <span className="text-[7px] font-normal opacity-40">{dataset.columnTypes[hi][0]}</span>
                                     </div>
                                 </th>
                             ))}
@@ -687,14 +796,14 @@ function SingleDataPanel({
                                     <td
                                         key={j}
                                         className={cn(
-                                            'py-1 px-2.5 text-[11px]',
+                                            'py-0.5 px-2 text-[10px] whitespace-nowrap',
                                             dataset.columnTypes[j] === 'id' ? 'font-medium font-mono' : '',
                                             dataset.columnTypes[j] === 'numeric' ? 'font-mono text-muted-foreground' : '',
                                             cell === '' ? 'bg-destructive/5' : '',
                                             panel.selectedColumn === dataset.headers[j] ? 'bg-primary/5' : '',
                                         )}
                                     >
-                                        {cell === '' ? <span className="text-destructive text-[10px] italic">null</span> : cell}
+                                        {cell === '' ? <span className="text-destructive text-[9px] italic">null</span> : cell}
                                     </td>
                                 ))}
                             </tr>
@@ -703,28 +812,25 @@ function SingleDataPanel({
                 </table>
             </div>
 
-            {/* Stats bar */}
-            <div className="px-2.5 py-1.5 border-t border-border/30 bg-muted/10 shrink-0">
+            {/* ── Stats bar ── */}
+            <div className="px-2 py-1 border-t border-border/30 bg-muted/10 shrink-0">
                 {selectedStats ? (
-                    <div className="flex items-center gap-3 text-[10px] font-mono text-muted-foreground overflow-x-auto">
-                        <span className="text-foreground font-medium font-sans">{panel.selectedColumn}</span>
-                        <span>μ {selectedStats.mean.toLocaleString()}</span>
-                        <span>med {selectedStats.median.toLocaleString()}</span>
-                        <span>mode {selectedStats.mode}</span>
-                        <span>σ {selectedStats.std.toLocaleString()}</span>
-                        <span>min {selectedStats.min.toLocaleString()}</span>
-                        <span>max {selectedStats.max.toLocaleString()}</span>
-                        {selectedStats.nulls > 0 && <span className="text-destructive">{selectedStats.nulls} nulls</span>}
+                    <div className="flex items-center gap-2 text-[9px] font-mono text-muted-foreground overflow-x-auto">
+                        <span className="text-foreground font-medium font-sans shrink-0">{panel.selectedColumn}</span>
+                        <span>μ{selectedStats.mean.toLocaleString()}</span>
+                        <span>med{selectedStats.median.toLocaleString()}</span>
+                        <span>σ{selectedStats.std.toLocaleString()}</span>
+                        <span>{selectedStats.min.toLocaleString()}–{selectedStats.max.toLocaleString()}</span>
+                        {selectedStats.nulls > 0 && <span className="text-destructive">{selectedStats.nulls}∅</span>}
                     </div>
                 ) : selectedCatStats ? (
-                    <div className="flex items-center gap-3 text-[10px] font-mono text-muted-foreground">
-                        <span className="text-foreground font-medium font-sans">{panel.selectedColumn}</span>
-                        <span>{selectedCatStats.unique} unique</span>
-                        <span>top: {selectedCatStats.top}</span>
-                        <span>freq: {selectedCatStats.frequency}</span>
+                    <div className="flex items-center gap-2 text-[9px] font-mono text-muted-foreground">
+                        <span className="text-foreground font-medium font-sans shrink-0">{panel.selectedColumn}</span>
+                        <span>{selectedCatStats.unique}u</span>
+                        <span>top:{selectedCatStats.top}</span>
                     </div>
                 ) : (
-                    <p className="text-[10px] text-muted-foreground/50 italic">Click a column header to see statistics</p>
+                    <p className="text-[9px] text-muted-foreground/40 italic">Select column for stats</p>
                 )}
             </div>
         </div>

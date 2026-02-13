@@ -37,12 +37,26 @@ const MOCK_MESSAGES: Message[] = [
         content: 'The EMEA decline (-12%) correlates with the October pricing restructure. Enterprise segment dropped 23% while SMB remained flat.',
         engine: 'narrative',
     },
+    {
+        id: '5',
+        role: 'user',
+        content: 'SUM(revenue)',
+    },
+    {
+        id: '6',
+        role: 'assistant',
+        content: 'Computed SUM(revenue) on sales_q4.csv → $6,965. Pinned to your Data panel\'s calculations tray.',
+        code: 'CQL: SUM(revenue) → $6,965',
+        engine: 'CQL',
+    },
 ];
 
 const SUGGESTIONS = [
     'Compare regions YoY',
     'Forecast Q1',
     'Drill into APAC',
+    'SUM(revenue)',
+    'PERCENTILE(units, 90)',
     'Export table',
 ];
 
@@ -156,7 +170,7 @@ export function ChatPanel({ className }: ChatPanelProps) {
                                 type="text"
                                 value={input}
                                 onChange={e => setInput(e.target.value)}
-                                placeholder="Ask anything about your data…"
+                                placeholder="Ask anything or type CQL… e.g. SUM(revenue)"
                                 className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none"
                             />
                             <button
