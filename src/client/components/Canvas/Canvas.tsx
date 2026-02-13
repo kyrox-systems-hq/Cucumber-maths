@@ -146,8 +146,8 @@ function CanvasBlockCard({ block, children }: { block: CanvasBlock; children: Re
 
             {/* Code transparency */}
             {showCode && block.code && (
-                <div className="mx-3 mt-2 rounded-md bg-background border border-border p-2 overflow-x-auto">
-                    <pre className="text-[11px] font-mono text-muted-foreground leading-relaxed">{block.code}</pre>
+                <div className="mx-3 mt-2 rounded-[10px] bg-[#141922] border border-[rgba(255,255,255,0.05)] p-3 overflow-x-auto">
+                    <pre className="text-[11px] font-mono text-[#C9D1D9] leading-relaxed">{block.code}</pre>
                 </div>
             )}
 
@@ -194,7 +194,7 @@ function MetricDisplay({ value, change, positive }: { value: string; change: str
                 variant="secondary"
                 className={cn(
                     'text-xs font-mono border-0',
-                    positive ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
+                    positive ? 'bg-[#22C55E]/10 text-[#22C55E]' : 'bg-[#EF4444]/10 text-[#EF4444]'
                 )}
             >
                 {change}

@@ -197,8 +197,8 @@ function ChatMessage({ message }: { message: Message }) {
                     </button>
 
                     {showCode && (
-                        <div className="mt-1 rounded-lg bg-background border border-border p-2.5 overflow-x-auto">
-                            <pre className="text-[11px] font-mono text-muted-foreground leading-relaxed">
+                        <div className="mt-1 rounded-[10px] bg-[#141922] border border-[rgba(255,255,255,0.05)] p-2.5 overflow-x-auto">
+                            <pre className="text-[11px] font-mono text-[#C9D1D9] leading-relaxed">
                                 {message.code}
                             </pre>
                         </div>
