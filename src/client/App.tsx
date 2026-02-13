@@ -1,67 +1,53 @@
-import { TooltipProvider } from '@client/components/ui/tooltip';
-import {
-    ResizableHandle,
-    ResizablePanel,
-    ResizablePanelGroup,
-} from '@client/components/ui/resizable';
 import { Header } from '@client/components/shared/Header';
+import { DataPanel } from '@client/components/DataPanel/DataPanel';
 import { ChatPanel } from '@client/components/Chat/ChatPanel';
 import { Canvas } from '@client/components/Canvas/Canvas';
-import { DataPanel } from '@client/components/DataPanel/DataPanel';
+import { useLayoutPreference } from '@client/hooks/useLayoutPreference';
+import {
+    ResizablePanelGroup,
+    ResizablePanel,
+    ResizableHandle,
+} from '@client/components/ui/resizable';
 
-/* ─────────────────────────────────────────────
- * App — Root layout
+/**
+ * Root application shell.
  *
- * ┌─────────────────────────────────────────────┐
- * │  Header                                      │
- * ├──────┬───────────┬──────────────────────────┤
- * │ Data │   Chat    │       Canvas             │
- * │Panel │  Panel    │                          │
- * │      │           │                          │
- * └──────┴───────────┴──────────────────────────┘
- * ───────────────────────────────────────────── */
-
+ * Layout: Header + 3-pane resizable split.
+ * Chat and Data sidebars are on opposite sides — user can swap them via the header toggle.
+ * Canvas is always in the centre.
+ */
 export default function App() {
+    const { chatSide, swapSidebars } = useLayoutPreference();
+
+    const leftPanel =
+        chatSide === 'left' ? <ChatPanel /> : <DataPanel />;
+    const rightPanel =
+        chatSide === 'left' ? <DataPanel /> : <ChatPanel />;
+
     return (
-        <TooltipProvider delayDuration={300}>
-            <div className="h-screen w-screen flex flex-col overflow-hidden">
-                <Header />
+        <div className="flex flex-col h-screen w-screen overflow-hidden bg-background">
+            <Header onSwapSidebars={swapSidebars} />
 
-                <ResizablePanelGroup orientation="horizontal" className="flex-1">
-                    {/* Data Panel — collapsible left sidebar */}
-                    <ResizablePanel
-                        defaultSize={18}
-                        minSize={14}
-                        maxSize={30}
-                        className="min-w-0"
-                    >
-                        <DataPanel />
-                    </ResizablePanel>
+            <ResizablePanelGroup orientation="horizontal" className="flex-1">
+                {/* Left sidebar */}
+                <ResizablePanel defaultSize={22} minSize={15} maxSize={35}>
+                    {leftPanel}
+                </ResizablePanel>
 
-                    <ResizableHandle withHandle />
+                <ResizableHandle />
 
-                    {/* Chat Panel */}
-                    <ResizablePanel
-                        defaultSize={28}
-                        minSize={20}
-                        maxSize={45}
-                        className="min-w-0"
-                    >
-                        <ChatPanel />
-                    </ResizablePanel>
+                {/* Centre — Canvas (always here) */}
+                <ResizablePanel defaultSize={56} minSize={30}>
+                    <Canvas />
+                </ResizablePanel>
 
-                    <ResizableHandle withHandle />
+                <ResizableHandle />
 
-                    {/* Canvas — fills remaining space */}
-                    <ResizablePanel
-                        defaultSize={54}
-                        minSize={30}
-                        className="min-w-0"
-                    >
-                        <Canvas />
-                    </ResizablePanel>
-                </ResizablePanelGroup>
-            </div>
-        </TooltipProvider>
+                {/* Right sidebar */}
+                <ResizablePanel defaultSize={22} minSize={15} maxSize={35}>
+                    {rightPanel}
+                </ResizablePanel>
+            </ResizablePanelGroup>
+        </div>
     );
 }
