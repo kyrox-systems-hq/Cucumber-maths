@@ -1,46 +1,26 @@
-import { useState, useCallback, useEffect } from 'react';
-
-const STORAGE_KEY = 'cucumber:layout-preference';
+import { useState, useEffect, useCallback } from 'react';
 
 type ChatSide = 'left' | 'right';
+const STORAGE_KEY = 'cucumber-layout-chat-side';
 
-interface LayoutPreference {
-    chatSide: ChatSide;
-    swapSidebars: () => void;
-}
-
-function readPreference(): ChatSide {
-    try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored === 'left' || stored === 'right') return stored;
-    } catch {
-        // localStorage unavailable — use default
-    }
-    return 'left';
-}
-
-/**
- * Manages sidebar layout preference with localStorage persistence.
- *
- * Default: Chat on the left, Data on the right.
- * User can swap via the header toggle button.
- */
-export function useLayoutPreference(): LayoutPreference {
-    const [chatSide, setChatSide] = useState<ChatSide>(readPreference);
+export function useLayoutPreference() {
+    const [chatSide, setChatSide] = useState<ChatSide>(() => {
+        try {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            return stored === 'right' ? 'right' : 'left';
+        } catch {
+            return 'left';
+        }
+    });
 
     const swapSidebars = useCallback(() => {
         setChatSide(prev => {
             const next = prev === 'left' ? 'right' : 'left';
-            try {
-                localStorage.setItem(STORAGE_KEY, next);
-            } catch {
-                // silent — preference just won't persist
-            }
+            try { localStorage.setItem(STORAGE_KEY, next); } catch { }
             return next;
         });
     }, []);
 
-    // Sync across tabs via storage event
     useEffect(() => {
         const onStorage = (e: StorageEvent) => {
             if (e.key === STORAGE_KEY && (e.newValue === 'left' || e.newValue === 'right')) {
@@ -51,5 +31,5 @@ export function useLayoutPreference(): LayoutPreference {
         return () => window.removeEventListener('storage', onStorage);
     }, []);
 
-    return { chatSide, swapSidebars };
+    return { chatSide, swapSidebars } as const;
 }

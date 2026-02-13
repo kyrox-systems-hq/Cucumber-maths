@@ -12,10 +12,7 @@ import {
 
 import { cn } from "@client/lib/utils"
 
-function ResizablePanelGroup({
-  className,
-  ...props
-}: GroupProps) {
+function ResizablePanelGroup({ className, ...props }: GroupProps) {
   return (
     <Group
       className={cn(
@@ -35,9 +32,7 @@ function ResizableHandle({
   withHandle,
   className,
   ...props
-}: SeparatorProps & {
-  withHandle?: boolean
-}) {
+}: SeparatorProps & { withHandle?: boolean }) {
   return (
     <Separator
       className={cn(
