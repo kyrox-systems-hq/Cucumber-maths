@@ -1,4 +1,4 @@
-import { Plus, Table2, BarChart3, Type, Hash, Code2, Database, ListChecks, Layout, FileSearch, ArrowRightLeft } from 'lucide-react';
+import { Plus, Table2, BarChart3, Type, Hash, Code2, Database, ListChecks, Layout, FileSearch, ArrowRightLeft, Play, MessageSquare, ClipboardCheck, ChevronRight, Eye, Pencil, Trash2, CheckCircle2 } from 'lucide-react';
 import { cn } from '@client/lib/utils';
 import { useState } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@client/components/ui/tabs';
@@ -35,14 +35,89 @@ const CHART_DATA = [
 ];
 const MAX_REV = Math.max(...CHART_DATA.map(d => d.revenue));
 
-/* ─── mock ledger steps ─── */
+/* ─── mock ledger data (enriched with prompt + plan + data diffs) ─── */
 
-const MOCK_STEPS = [
-    { id: 1, engine: 'tabular', operation: 'LOAD', description: 'Load sales_q4.csv', status: 'done' as const, rows: '12,847', duration: '42ms' },
-    { id: 2, engine: 'data-quality', operation: 'CLEAN', description: 'Drop nulls in revenue (47 rows)', status: 'done' as const, rows: '12,800', duration: '18ms' },
-    { id: 3, engine: 'data-quality', operation: 'DEDUP', description: 'Deduplicate on order_id (12 rows)', status: 'done' as const, rows: '12,788', duration: '24ms' },
-    { id: 4, engine: 'tabular', operation: 'GROUP', description: 'GROUP BY region, SUM(revenue)', status: 'done' as const, rows: '6', duration: '8ms' },
-    { id: 5, engine: 'visualization', operation: 'CHART', description: 'Bar chart spec → rendered', status: 'done' as const, rows: '6', duration: '120ms' },
+interface LedgerStep {
+    id: number;
+    engine: string;
+    operation: string;
+    description: string;
+    status: 'done' | 'running' | 'pending';
+    rows: string;
+    duration: string;
+    code: string;
+    affectedRows?: string[][];
+    affectedHeaders?: string[];
+    diffLabel?: string;
+}
+
+const MOCK_LEDGER = {
+    prompt: 'Show me revenue by region for Q4',
+    approvedPlan: 'Load sales_q4.csv → Clean nulls in revenue → Deduplicate on order_id → Group by region → Bar chart',
+    userEdited: false,
+    totalDuration: '212ms',
+    steps: [
+        {
+            id: 1, engine: 'tabular', operation: 'LOAD', description: 'Load sales_q4.csv',
+            status: 'done' as const, rows: '12,847', duration: '42ms',
+            code: 'LOAD "sales_q4.csv"\n  format: csv\n  encoding: utf-8\n  → 12,847 rows × 14 cols',
+        },
+        {
+            id: 2, engine: 'data-quality', operation: 'CLEAN', description: 'Drop nulls in revenue (47 rows)',
+            status: 'done' as const, rows: '12,800', duration: '18ms',
+            code: 'CLEAN nulls\n  column: revenue\n  action: drop_row\n  → removed 47 rows',
+            diffLabel: '47 rows removed (null revenue)',
+            affectedHeaders: ['order_id', 'region', 'revenue', 'units'],
+            affectedRows: [
+                ['ORD-003', 'APAC', '—', '1'],
+                ['ORD-147', 'Europe', '—', '3'],
+                ['ORD-891', 'LATAM', '—', '2'],
+            ],
+        },
+        {
+            id: 3, engine: 'data-quality', operation: 'DEDUP', description: 'Deduplicate on order_id (12 rows)',
+            status: 'done' as const, rows: '12,788', duration: '24ms',
+            code: 'DEDUP\n  key: order_id\n  keep: first\n  → removed 12 duplicates',
+            diffLabel: '12 duplicates removed (key: order_id)',
+            affectedHeaders: ['order_id', 'region', 'revenue', 'kept'],
+            affectedRows: [
+                ['ORD-204', 'APAC', '$890', '✗ removed'],
+                ['ORD-204', 'APAC', '$890', '✓ kept'],
+                ['ORD-517', 'Europe', '$1,240', '✗ removed'],
+                ['ORD-517', 'Europe', '$1,240', '✓ kept'],
+            ],
+        },
+        {
+            id: 4, engine: 'tabular', operation: 'GROUP', description: 'GROUP BY region, SUM(revenue)',
+            status: 'done' as const, rows: '6', duration: '8ms',
+            code: 'SELECT region, SUM(revenue) as total\nFROM pipeline_output\nGROUP BY region\nORDER BY total DESC',
+        },
+        {
+            id: 5, engine: 'visualization', operation: 'CHART', description: 'Bar chart spec → rendered',
+            status: 'done' as const, rows: '6', duration: '120ms',
+            code: 'CHART bar\n  x: region\n  y: total\n  sort: desc\n  palette: brand',
+        },
+    ] as LedgerStep[],
+    output: '1 chart + 2 metrics + 1 table committed to Canvas',
+};
+
+/* ─── mock execution preview steps ─── */
+
+interface PreviewStep {
+    id: number;
+    engine: string;
+    description: string;
+    estimatedRows: string;
+    estimatedDuration: string;
+    preview?: string;
+}
+
+const MOCK_PREVIEW: PreviewStep[] | null = [
+    { id: 1, engine: 'tabular', description: 'Load customers.parquet', estimatedRows: '84,201', estimatedDuration: '~80ms' },
+    { id: 2, engine: 'data-quality', description: 'Validate email format', estimatedRows: '84,201', estimatedDuration: '~45ms', preview: 'Pattern: RFC 5322 email validation' },
+    { id: 3, engine: 'data-quality', description: 'Drop rows with null email or name', estimatedRows: '~83,900', estimatedDuration: '~20ms' },
+    { id: 4, engine: 'tabular', description: 'Group by signup_month, COUNT(*)', estimatedRows: '~12', estimatedDuration: '~10ms' },
+    { id: 5, engine: 'visualization', description: 'Line chart: signups over time', estimatedRows: '~12', estimatedDuration: '~100ms', preview: 'Line chart with monthly x-axis' },
 ];
 
 /* ─── main component ─── */
@@ -50,9 +125,24 @@ const MOCK_STEPS = [
 interface CanvasProps { className?: string; }
 
 export function Canvas({ className }: CanvasProps) {
+    // In a real app, `hasPlan` would come from a global store/context
+    // Toggle this to simulate an active execution preview
+    const [hasPlan, setHasPlan] = useState(true);
+    const [activeTab, setActiveTab] = useState('canvas');
+
+    const simulatePrompt = () => {
+        setHasPlan(true);
+        setActiveTab('preview');
+    };
+
+    const dismissPreview = () => {
+        setHasPlan(false);
+        setActiveTab('canvas');
+    };
+
     return (
         <div className={cn('flex flex-col h-full bg-background overflow-hidden', className)}>
-            <Tabs defaultValue="canvas" className="flex flex-col h-full">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
                 {/* Tab bar */}
                 <div className="flex items-center justify-between px-4 py-1.5 border-b border-border bg-card shrink-0">
                     <TabsList className="h-8 bg-transparent p-0 gap-1">
@@ -76,6 +166,22 @@ export function Canvas({ className }: CanvasProps) {
                         >
                             <Layout className="h-3 w-3 mr-1.5" />
                             Canvas
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="preview"
+                            disabled={!hasPlan}
+                            className={cn(
+                                'h-7 px-3 text-xs rounded-md',
+                                hasPlan
+                                    ? 'data-[state=active]:bg-primary/15 data-[state=active]:text-primary text-primary/70 border border-primary/20'
+                                    : 'text-muted-foreground/30 cursor-not-allowed'
+                            )}
+                        >
+                            <Play className="h-3 w-3 mr-1.5" />
+                            Preview
+                            {hasPlan && activeTab !== 'preview' && (
+                                <span className="ml-1.5 h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                            )}
                         </TabsTrigger>
                     </TabsList>
                     <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors duration-150 px-2 py-1 rounded-md hover:bg-accent">
@@ -111,7 +217,109 @@ export function Canvas({ className }: CanvasProps) {
                         </div>
                     </div>
                 </TabsContent>
+
+                {/* Preview tab — execution plan */}
+                <TabsContent value="preview" className="flex-1 mt-0 overflow-y-auto">
+                    <ExecutionPreviewTab onApprove={dismissPreview} onCancel={dismissPreview} />
+                </TabsContent>
             </Tabs>
+        </div>
+    );
+}
+
+/* ─── Execution Preview Tab ─── */
+
+function ExecutionPreviewTab({ onApprove, onCancel }: { onApprove: () => void; onCancel: () => void }) {
+    if (!MOCK_PREVIEW) return null;
+
+    return (
+        <div className="p-4 space-y-4">
+            {/* Prompt context */}
+            <div className="rounded-[10px] border border-primary/20 bg-primary/5 p-3">
+                <div className="flex items-center gap-2 mb-2">
+                    <MessageSquare className="h-3.5 w-3.5 text-primary" />
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-primary">Prompt</span>
+                </div>
+                <p className="text-sm text-foreground">"Analyze customer signups over time from customers.parquet"</p>
+            </div>
+
+            {/* Plan summary */}
+            <div className="flex items-center gap-2">
+                <ClipboardCheck className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Execution Plan
+                </span>
+                <span className="text-[10px] text-muted-foreground font-mono">
+                    {MOCK_PREVIEW.length} steps · ~255ms estimated
+                </span>
+            </div>
+
+            {/* Steps */}
+            <div className="space-y-1.5">
+                {MOCK_PREVIEW.map((step, i) => (
+                    <div key={step.id} className="flex gap-3">
+                        {/* Timeline */}
+                        <div className="flex flex-col items-center shrink-0">
+                            <div className="h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-mono bg-muted text-muted-foreground border border-border">
+                                {step.id}
+                            </div>
+                            {i < MOCK_PREVIEW.length - 1 && <div className="w-px flex-1 bg-border/50 my-0.5" />}
+                        </div>
+
+                        {/* Step card */}
+                        <div className="flex-1 rounded-[10px] border border-border/50 px-3 py-2 mb-1 hover:border-border hover:bg-card transition-all duration-150">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <span className="inline-flex items-center rounded-md border border-border px-1 py-0.5 text-[9px] text-muted-foreground shrink-0">
+                                        {step.engine}
+                                    </span>
+                                    <span className="text-xs font-medium truncate">{step.description}</span>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0 ml-2">
+                                    <span className="text-[10px] text-muted-foreground font-mono">~{step.estimatedRows} rows</span>
+                                    <span className="text-[10px] text-muted-foreground font-mono">{step.estimatedDuration}</span>
+                                    <div className="flex items-center gap-0.5 ml-1">
+                                        <button className="p-0.5 rounded text-muted-foreground/50 hover:text-foreground transition-colors" title="Edit step">
+                                            <Pencil className="h-3 w-3" />
+                                        </button>
+                                        <button className="p-0.5 rounded text-muted-foreground/50 hover:text-destructive transition-colors" title="Remove step">
+                                            <Trash2 className="h-3 w-3" />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            {step.preview && (
+                                <div className="mt-1.5 flex items-center gap-1">
+                                    <Eye className="h-3 w-3 text-muted-foreground" />
+                                    <span className="text-[10px] text-muted-foreground">{step.preview}</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex items-center gap-2 pt-2">
+                <button
+                    onClick={onApprove}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-[10px] bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors duration-150"
+                >
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Approve & Execute
+                </button>
+                <button
+                    onClick={onApprove}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-[10px] border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors duration-150"
+                >
+                    <Pencil className="h-3.5 w-3.5" /> Edit Plan
+                </button>
+                <button
+                    onClick={onCancel}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-[10px] text-xs text-muted-foreground hover:text-destructive transition-colors duration-150"
+                >
+                    Cancel
+                </button>
+            </div>
         </div>
     );
 }
@@ -181,7 +389,6 @@ function RawDataPreview({ stage }: { stage: 'raw' | 'cleaned' }) {
         ['ORD-006', 'MEA', '$1,890', '4', '2024-10-03', 'C-5624'],
     ];
     const cleanRows = rawRows.filter(r => r[2] !== '');
-
     const rows = stage === 'raw' ? rawRows : cleanRows;
 
     return (
@@ -248,23 +455,49 @@ function TransformedPreview() {
     );
 }
 
-/* ─── Ledger Tab ─── */
+/* ─── Ledger Tab (enriched) ─── */
 
 function LedgerTab() {
     const [expandedStep, setExpandedStep] = useState<number | null>(null);
+    const [showDiff, setShowDiff] = useState<number | null>(null);
 
     return (
-        <div className="p-4 space-y-1">
-            <div className="flex items-center gap-2 mb-3">
+        <div className="p-4 space-y-3">
+            {/* Prompt + Approved Plan header */}
+            <div className="rounded-[10px] border border-border/50 bg-card overflow-hidden">
+                <div className="px-3 py-2 border-b border-border/30 bg-muted/20">
+                    <div className="flex items-center gap-2">
+                        <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Prompt</span>
+                    </div>
+                    <p className="text-xs text-foreground mt-1">"{MOCK_LEDGER.prompt}"</p>
+                </div>
+                <div className="px-3 py-2">
+                    <div className="flex items-center gap-2">
+                        <ClipboardCheck className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Approved Plan</span>
+                        {!MOCK_LEDGER.userEdited && (
+                            <span className="inline-flex items-center rounded-md bg-muted px-1 py-0.5 text-[9px] text-muted-foreground">
+                                auto-approved
+                            </span>
+                        )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 font-mono">{MOCK_LEDGER.approvedPlan}</p>
+                </div>
+            </div>
+
+            {/* Chain metadata */}
+            <div className="flex items-center gap-2">
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Computation Chain
                 </span>
                 <span className="text-[10px] text-muted-foreground font-mono">
-                    5 steps · 212ms total
+                    {MOCK_LEDGER.steps.length} steps · {MOCK_LEDGER.totalDuration} total
                 </span>
             </div>
 
-            {MOCK_STEPS.map((step, i) => (
+            {/* Steps */}
+            {MOCK_LEDGER.steps.map((step, i) => (
                 <div key={step.id} className="flex gap-3">
                     {/* Timeline */}
                     <div className="flex flex-col items-center shrink-0">
@@ -276,46 +509,107 @@ function LedgerTab() {
                         )}>
                             {step.id}
                         </div>
-                        {i < MOCK_STEPS.length - 1 && <div className="w-px flex-1 bg-border/50 my-0.5" />}
+                        {i < MOCK_LEDGER.steps.length - 1 && <div className="w-px flex-1 bg-border/50 my-0.5" />}
                     </div>
 
                     {/* Step card */}
-                    <button
-                        onClick={() => setExpandedStep(expandedStep === step.id ? null : step.id)}
-                        className={cn(
-                            'flex-1 rounded-[10px] border px-3 py-2 text-left transition-all duration-150 mb-1',
-                            expandedStep === step.id
-                                ? 'border-primary/30 bg-primary/5'
-                                : 'border-border/50 hover:border-border hover:bg-card'
-                        )}
-                    >
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 min-w-0">
-                                <span className="inline-flex items-center rounded-md border border-border px-1 py-0.5 text-[9px] text-muted-foreground shrink-0">
-                                    {step.engine}
-                                </span>
-                                <span className="text-xs font-medium truncate">{step.description}</span>
+                    <div className="flex-1 mb-1">
+                        <button
+                            onClick={() => setExpandedStep(expandedStep === step.id ? null : step.id)}
+                            className={cn(
+                                'w-full rounded-[10px] border px-3 py-2 text-left transition-all duration-150',
+                                expandedStep === step.id
+                                    ? 'border-primary/30 bg-primary/5'
+                                    : 'border-border/50 hover:border-border hover:bg-card'
+                            )}
+                        >
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <span className="inline-flex items-center rounded-md border border-border px-1 py-0.5 text-[9px] text-muted-foreground shrink-0">
+                                        {step.engine}
+                                    </span>
+                                    <span className="text-xs font-medium truncate">{step.description}</span>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0 ml-2">
+                                    <span className="text-[10px] text-muted-foreground font-mono">{step.rows} rows</span>
+                                    <span className="text-[10px] text-muted-foreground font-mono">{step.duration}</span>
+                                    <ChevronRight className={cn('h-3 w-3 text-muted-foreground transition-transform duration-150', expandedStep === step.id && 'rotate-90')} />
+                                </div>
                             </div>
-                            <div className="flex items-center gap-2 shrink-0 ml-2">
-                                <span className="text-[10px] text-muted-foreground font-mono">{step.rows} rows</span>
-                                <span className="text-[10px] text-muted-foreground font-mono">{step.duration}</span>
-                            </div>
-                        </div>
+                        </button>
 
+                        {/* Expanded: code + data diff */}
                         {expandedStep === step.id && (
-                            <div className="mt-2 rounded-[10px] bg-[--ledger-bg] border border-[--ledger-border] p-2.5 overflow-x-auto">
-                                <pre className="text-[11px] font-mono text-[--code] leading-relaxed whitespace-pre">
-                                    {step.operation === 'LOAD' && 'LOAD "sales_q4.csv"\n  format: csv\n  encoding: utf-8\n  → 12,847 rows × 14 cols'}
-                                    {step.operation === 'CLEAN' && 'CLEAN nulls\n  column: revenue\n  action: drop_row\n  → removed 47 rows'}
-                                    {step.operation === 'DEDUP' && 'DEDUP\n  key: order_id\n  keep: first\n  → removed 12 duplicates'}
-                                    {step.operation === 'GROUP' && 'SELECT region, SUM(revenue) as total\nFROM pipeline_output\nGROUP BY region\nORDER BY total DESC'}
-                                    {step.operation === 'CHART' && 'CHART bar\n  x: region\n  y: total\n  sort: desc\n  palette: brand'}
-                                </pre>
+                            <div className="mt-1.5 space-y-2">
+                                {/* Code */}
+                                <div className="rounded-[10px] bg-[--ledger-bg] border border-[--ledger-border] p-2.5 overflow-x-auto">
+                                    <pre className="text-[11px] font-mono text-[--code] leading-relaxed whitespace-pre">{step.code}</pre>
+                                </div>
+
+                                {/* Data diff toggle */}
+                                {step.affectedRows && (
+                                    <div>
+                                        <button
+                                            onClick={() => setShowDiff(showDiff === step.id ? null : step.id)}
+                                            className="flex items-center gap-1.5 text-[11px] text-primary hover:text-primary/80 transition-colors duration-150"
+                                        >
+                                            <Eye className="h-3 w-3" />
+                                            {showDiff === step.id ? 'Hide' : 'View'} affected rows — {step.diffLabel}
+                                        </button>
+
+                                        {showDiff === step.id && (
+                                            <div className="mt-1.5 rounded-[10px] border border-border/50 overflow-hidden">
+                                                <table className="w-full text-sm">
+                                                    <thead>
+                                                        <tr className="border-b border-border bg-muted/30">
+                                                            {step.affectedHeaders!.map(h => (
+                                                                <th key={h} className="text-left py-1 px-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
+                                                            ))}
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {step.affectedRows.map((row, ri) => (
+                                                            <tr key={ri} className={cn(
+                                                                'border-b border-border/20 transition-colors duration-150',
+                                                                row.some(c => c === '—' || c === '✗ removed') ? 'bg-destructive/5' : 'hover:bg-accent/30'
+                                                            )}>
+                                                                {row.map((cell, ci) => (
+                                                                    <td key={ci} className={cn(
+                                                                        'py-1 px-2 text-[11px] font-mono',
+                                                                        cell === '—' ? 'text-destructive italic' : '',
+                                                                        cell === '✗ removed' ? 'text-destructive' : '',
+                                                                        cell === '✓ kept' ? 'text-[--success]' : '',
+                                                                    )}>
+                                                                        {cell}
+                                                                    </td>
+                                                                ))}
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                                <div className="px-2 py-1 border-t border-border/30 bg-muted/10">
+                                                    <span className="text-[10px] text-muted-foreground">
+                                                        Showing {step.affectedRows.length} of {step.diffLabel?.match(/\d+/)?.[0]} affected rows
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )}
-                    </button>
+                    </div>
                 </div>
             ))}
+
+            {/* Output summary */}
+            <div className="rounded-[10px] border border-primary/20 bg-primary/5 px-3 py-2">
+                <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-primary">Output</span>
+                </div>
+                <p className="text-xs text-foreground mt-1">{MOCK_LEDGER.output}</p>
+            </div>
         </div>
     );
 }
