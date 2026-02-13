@@ -14,19 +14,23 @@ export default function App() {
     return (
         <div className="flex flex-col h-screen w-screen overflow-hidden bg-background text-foreground">
             <Header onSwapSidebars={swapSidebars} />
-            <Group orientation="horizontal" className="flex-1">
-                <Panel id="left" defaultSize={22} minSize={15} maxSize={35}>
-                    {leftPanel}
-                </Panel>
-                <Separator className="w-px bg-border hover:bg-primary/30 transition-colors duration-150 cursor-col-resize" />
-                <Panel id="center" defaultSize={56} minSize={30}>
-                    <Canvas />
-                </Panel>
-                <Separator className="w-px bg-border hover:bg-primary/30 transition-colors duration-150 cursor-col-resize" />
-                <Panel id="right" defaultSize={22} minSize={15} maxSize={35}>
-                    {rightPanel}
-                </Panel>
-            </Group>
+            {/* Group renders its own div with display:flex, height:100%, width:100%.
+                It needs a parent with explicit dimensions — flex-1 + min-h-0 does that. */}
+            <div className="flex-1 min-h-0">
+                <Group id="main-layout" orientation="horizontal">
+                    <Panel id="left" defaultSize={22} minSize={15} maxSize={35}>
+                        {leftPanel}
+                    </Panel>
+                    <Separator />
+                    <Panel id="center" defaultSize={56} minSize={30}>
+                        <Canvas />
+                    </Panel>
+                    <Separator />
+                    <Panel id="right" defaultSize={22} minSize={15} maxSize={35}>
+                        {rightPanel}
+                    </Panel>
+                </Group>
+            </div>
         </div>
     );
 }
