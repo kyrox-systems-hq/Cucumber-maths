@@ -68,11 +68,12 @@ interface ComputationGroup {
     name: string;
     cards: ComputationCard[];
     collapsed: boolean;
+    dataSources: string[];   // [] = project-scoped, ['sales_q4.csv'] = dataset-scoped
 }
 
 const INITIAL_GROUPS: ComputationGroup[] = [
     {
-        id: 'g1', name: 'Revenue Metrics', collapsed: false,
+        id: 'g1', name: 'Revenue Metrics', collapsed: false, dataSources: ['sales_q4.csv'],
         cards: [
             { id: 'c1', expression: 'SUM(sales.revenue)', dataset: 'sales', value: '$6,965', name: 'Total Revenue' },
             { id: 'c2', expression: 'AVG(sales.revenue)', dataset: 'sales', value: '$1,741', name: 'Average Revenue' },
@@ -80,7 +81,7 @@ const INITIAL_GROUPS: ComputationGroup[] = [
         ],
     },
     {
-        id: 'g2', name: 'Customer Stats', collapsed: false,
+        id: 'g2', name: 'Customer Stats', collapsed: false, dataSources: ['customers.parquet'],
         cards: [
             { id: 'c4', expression: 'COUNT(customers)', dataset: 'customers', value: '847', name: 'Total Customers' },
             { id: 'c5', expression: 'AVG(customers.mrr)', dataset: 'customers', value: '$89.50', name: 'Average MRR' },
@@ -109,6 +110,17 @@ interface DataPanelProps {
 
 export function DataPanel({ className, scratchpadActive, selectedTableId, onSelectTable }: DataPanelProps) {
     const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set(DATA_SOURCES.map(ds => ds.id)));
+    const [loadedGroupIds, setLoadedGroupIds] = useState<Set<string>>(new Set());
+
+    const toggleLoadGroup = (groupId: string) => {
+        setLoadedGroupIds(prev => {
+            const next = new Set(prev);
+            next.has(groupId) ? next.delete(groupId) : next.add(groupId);
+            return next;
+        });
+    };
+
+    const loadedGroups = INITIAL_GROUPS.filter(g => loadedGroupIds.has(g.id));
     return (
         <div className={cn('flex flex-col h-full bg-card overflow-hidden', className)}>
             <Tabs defaultValue="sources" className="flex flex-col h-full">
@@ -233,17 +245,32 @@ export function DataPanel({ className, scratchpadActive, selectedTableId, onSele
                                                                 Computations
                                                             </span>
                                                             <div className="mt-0.5 space-y-0.5">
-                                                                {dsGroups.map(group => (
-                                                                    <div key={group.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent transition-colors duration-150 cursor-pointer">
-                                                                        <Calculator className="h-3 w-3 text-muted-foreground/60 shrink-0" />
-                                                                        <span className="text-xs font-medium truncate flex-1">{group.name}</span>
-                                                                        <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">
-                                                                            {group.cards.filter(c => tableIds.has(c.dataset)).length}
-                                                                        </span>
-                                                                    </div>
-                                                                ))}
+                                                                {dsGroups.map(group => {
+                                                                    const isLoaded = loadedGroupIds.has(group.id);
+                                                                    return (
+                                                                        <div key={group.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent transition-colors duration-150">
+                                                                            <Calculator className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+                                                                            <span className="text-xs font-medium truncate flex-1">{group.name}</span>
+                                                                            <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">
+                                                                                {group.cards.filter(c => tableIds.has(c.dataset)).length}
+                                                                            </span>
+                                                                            <button
+                                                                                onClick={(e) => { e.stopPropagation(); toggleLoadGroup(group.id); }}
+                                                                                className={cn(
+                                                                                    'p-0.5 rounded shrink-0 transition-colors',
+                                                                                    isLoaded ? 'text-emerald-500 hover:text-emerald-400' : 'text-muted-foreground/40 hover:text-primary',
+                                                                                )}
+                                                                                title={isLoaded ? 'Remove from Computations' : 'Load to Computations'}
+                                                                            >
+                                                                                {isLoaded
+                                                                                    ? <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 8.5l3.5 3.5 6.5-8" /></svg>
+                                                                                    : <Plus className="h-3.5 w-3.5" />}
+                                                                            </button>
+                                                                        </div>
+                                                                    );
+                                                                })}
                                                                 {ungroupedCards.length > 0 && (
-                                                                    <div className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent transition-colors duration-150 cursor-pointer">
+                                                                    <div className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent transition-colors duration-150">
                                                                         <Calculator className="h-3 w-3 text-muted-foreground/40 shrink-0" />
                                                                         <span className="text-xs font-medium truncate flex-1 text-muted-foreground">Ungrouped</span>
                                                                         <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">{ungroupedCards.length}</span>
@@ -300,7 +327,7 @@ export function DataPanel({ className, scratchpadActive, selectedTableId, onSele
                 </TabsContent>
 
                 {/* Computations tab */}
-                <ComputationsTab scratchpadActive={scratchpadActive} />
+                <ComputationsTab scratchpadActive={scratchpadActive} loadedGroups={loadedGroups} />
             </Tabs>
         </div>
     );
@@ -308,15 +335,19 @@ export function DataPanel({ className, scratchpadActive, selectedTableId, onSele
 
 /* ─── Computations Tab ─── */
 
-function ComputationsTab({ scratchpadActive }: { scratchpadActive?: boolean }) {
-    const [groups, setGroups] = useState<ComputationGroup[]>(INITIAL_GROUPS);
+function ComputationsTab({ scratchpadActive, loadedGroups }: { scratchpadActive?: boolean; loadedGroups: ComputationGroup[] }) {
+    const [adHocGroups, setAdHocGroups] = useState<ComputationGroup[]>([]);
     const [cqlInput, setCqlInput] = useState('');
     const [menuOpen, setMenuOpen] = useState<string | null>(null);
     const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
     const [expanded, setExpanded] = useState(false);
 
+    // Merge loaded groups + user-created ad-hoc groups
+    const groups = [...loadedGroups, ...adHocGroups];
+
     const toggleGroup = (groupId: string) => {
-        setGroups(prev => prev.map(g => g.id === groupId ? { ...g, collapsed: !g.collapsed } : g));
+        // Toggle in loaded groups is read-only (collapsed state); for ad-hoc groups, toggle locally
+        setAdHocGroups(prev => prev.map(g => g.id === groupId ? { ...g, collapsed: !g.collapsed } : g));
     };
 
     const addComputation = () => {
@@ -334,30 +365,33 @@ function ComputationsTab({ scratchpadActive }: { scratchpadActive?: boolean }) {
             id: `cc-${Date.now()}`, expression: expr, dataset, value,
             name: expr.replace(/[^a-zA-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(),
         };
-        // Add to Unsaved group (create if missing)
-        setGroups(prev => {
-            const unsaved = prev.find(g => g.id === 'unsaved');
+        // Add to project-scoped Ungrouped group (create if missing)
+        setAdHocGroups(prev => {
+            const unsaved = prev.find(g => g.id === 'ungrouped-project');
             if (unsaved) {
-                return prev.map(g => g.id === 'unsaved' ? { ...g, cards: [...g.cards, card] } : g);
+                return prev.map(g => g.id === 'ungrouped-project' ? { ...g, cards: [...g.cards, card] } : g);
             }
-            return [...prev, { id: 'unsaved', name: 'Unsaved', collapsed: false, cards: [card] }];
+            return [...prev, { id: 'ungrouped-project', name: 'Ungrouped', collapsed: false, dataSources: [], cards: [card] }];
         });
         setCqlInput('');
     };
 
     const deleteCard = (groupId: string, cardId: string) => {
-        setGroups(prev => prev.map(g => g.id === groupId
+        setAdHocGroups(prev => prev.map(g => g.id === groupId
             ? { ...g, cards: g.cards.filter(c => c.id !== cardId) }
             : g
-        ).filter(g => g.cards.length > 0 || g.id !== 'unsaved'));
+        ).filter(g => g.cards.length > 0 || g.id !== 'ungrouped-project'));
         setMenuOpen(null);
         setConfirmDelete(null);
     };
 
     const addGroup = () => {
         const name = `Group ${groups.length + 1}`;
-        setGroups(prev => [...prev, { id: `g-${Date.now()}`, name, collapsed: false, cards: [] }]);
+        setAdHocGroups(prev => [...prev, { id: `g-${Date.now()}`, name, collapsed: false, dataSources: [], cards: [] }]);
     };
+
+    const provenanceBadge = (g: ComputationGroup) =>
+        g.dataSources.length === 0 ? 'Project' : g.dataSources.join(', ');
 
     return (
         <TabsContent value="computations" className="flex-1 mt-0 overflow-y-auto">
@@ -424,6 +458,18 @@ function ComputationsTab({ scratchpadActive }: { scratchpadActive?: boolean }) {
 
             {/* Groups */}
             <div className="px-3 pb-3 space-y-2">
+                {groups.length === 0 && (
+                    <div className="flex flex-col items-center gap-2 py-8 text-center">
+                        <Calculator className="h-6 w-6 text-muted-foreground/30" />
+                        <p className="text-xs text-muted-foreground/60">
+                            No computations loaded
+                        </p>
+                        <p className="text-[10px] text-muted-foreground/40 max-w-[200px]">
+                            Load computation groups from the Sources tab, or start writing CQL above.
+                        </p>
+                    </div>
+                )}
+
                 {groups.map(group => (
                     <div key={group.id} className="rounded-lg border border-border/40 overflow-hidden">
                         {/* Group header */}
@@ -433,6 +479,9 @@ function ComputationsTab({ scratchpadActive }: { scratchpadActive?: boolean }) {
                                 ? <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
                                 : <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />}
                             <span className="text-xs font-medium flex-1 truncate">{group.name}</span>
+                            <span className="text-[9px] text-muted-foreground/40 truncate max-w-[100px] shrink-0">
+                                › {provenanceBadge(group)}
+                            </span>
                             <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">{group.cards.length}</span>
                         </button>
 
