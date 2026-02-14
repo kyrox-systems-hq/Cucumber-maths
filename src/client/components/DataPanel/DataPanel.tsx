@@ -112,10 +112,14 @@ export function DataPanel({ className, scratchpadActive, selectedTableId, onSele
     const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set(DATA_SOURCES.map(ds => ds.id)));
     const [loadedGroupIds, setLoadedGroupIds] = useState<Set<string>>(new Set());
 
-    const toggleLoadGroup = (groupId: string) => {
+    const loadGroup = (groupId: string) => {
+        setLoadedGroupIds(prev => new Set(prev).add(groupId));
+    };
+
+    const unloadGroup = (groupId: string) => {
         setLoadedGroupIds(prev => {
             const next = new Set(prev);
-            next.has(groupId) ? next.delete(groupId) : next.add(groupId);
+            next.delete(groupId);
             return next;
         });
     };
@@ -255,12 +259,12 @@ export function DataPanel({ className, scratchpadActive, selectedTableId, onSele
                                                                                 {group.cards.filter(c => tableIds.has(c.dataset)).length}
                                                                             </span>
                                                                             <button
-                                                                                onClick={(e) => { e.stopPropagation(); toggleLoadGroup(group.id); }}
+                                                                                onClick={(e) => { e.stopPropagation(); if (!isLoaded) loadGroup(group.id); }}
                                                                                 className={cn(
                                                                                     'p-0.5 rounded shrink-0 transition-colors',
-                                                                                    isLoaded ? 'text-emerald-500 hover:text-emerald-400' : 'text-muted-foreground/40 hover:text-primary',
+                                                                                    isLoaded ? 'text-emerald-500 cursor-default' : 'text-muted-foreground/40 hover:text-primary',
                                                                                 )}
-                                                                                title={isLoaded ? 'Remove from Computations' : 'Load to Computations'}
+                                                                                title={isLoaded ? 'Loaded in Computations' : 'Load to Computations'}
                                                                             >
                                                                                 {isLoaded
                                                                                     ? <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 8.5l3.5 3.5 6.5-8" /></svg>
@@ -327,7 +331,7 @@ export function DataPanel({ className, scratchpadActive, selectedTableId, onSele
                 </TabsContent>
 
                 {/* Computations tab */}
-                <ComputationsTab scratchpadActive={scratchpadActive} loadedGroups={loadedGroups} />
+                <ComputationsTab scratchpadActive={scratchpadActive} loadedGroups={loadedGroups} onUnloadGroup={unloadGroup} />
             </Tabs>
         </div>
     );
@@ -335,12 +339,15 @@ export function DataPanel({ className, scratchpadActive, selectedTableId, onSele
 
 /* ─── Computations Tab ─── */
 
-function ComputationsTab({ scratchpadActive, loadedGroups }: { scratchpadActive?: boolean; loadedGroups: ComputationGroup[] }) {
+function ComputationsTab({ scratchpadActive, loadedGroups, onUnloadGroup }: { scratchpadActive?: boolean; loadedGroups: ComputationGroup[]; onUnloadGroup: (groupId: string) => void }) {
     const [adHocGroups, setAdHocGroups] = useState<ComputationGroup[]>([]);
     const [cqlInput, setCqlInput] = useState('');
     const [menuOpen, setMenuOpen] = useState<string | null>(null);
     const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
     const [expanded, setExpanded] = useState(false);
+    const [groupMenuOpen, setGroupMenuOpen] = useState<string | null>(null);
+    const [confirmRemoveGroup, setConfirmRemoveGroup] = useState<string | null>(null);
+    const [editingCard, setEditingCard] = useState<{ groupId: string; cardId: string } | null>(null);
 
     // Merge loaded groups + user-created ad-hoc groups
     const groups = [...loadedGroups, ...adHocGroups];
@@ -365,14 +372,24 @@ function ComputationsTab({ scratchpadActive, loadedGroups }: { scratchpadActive?
             id: `cc-${Date.now()}`, expression: expr, dataset, value,
             name: expr.replace(/[^a-zA-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(),
         };
-        // Add to project-scoped Ungrouped group (create if missing)
-        setAdHocGroups(prev => {
-            const unsaved = prev.find(g => g.id === 'ungrouped-project');
-            if (unsaved) {
-                return prev.map(g => g.id === 'ungrouped-project' ? { ...g, cards: [...g.cards, card] } : g);
-            }
-            return [...prev, { id: 'ungrouped-project', name: 'Ungrouped', collapsed: false, dataSources: [], cards: [card] }];
-        });
+
+        // If editing an existing card, replace it
+        if (editingCard) {
+            setAdHocGroups(prev => prev.map(g => g.id === editingCard.groupId
+                ? { ...g, cards: g.cards.map(c => c.id === editingCard.cardId ? card : c) }
+                : g
+            ));
+            setEditingCard(null);
+        } else {
+            // Add to project-scoped Ungrouped group (create if missing)
+            setAdHocGroups(prev => {
+                const unsaved = prev.find(g => g.id === 'ungrouped-project');
+                if (unsaved) {
+                    return prev.map(g => g.id === 'ungrouped-project' ? { ...g, cards: [...g.cards, card] } : g);
+                }
+                return [...prev, { id: 'ungrouped-project', name: 'Ungrouped', collapsed: false, dataSources: [], cards: [card] }];
+            });
+        }
         setCqlInput('');
     };
 
@@ -383,6 +400,24 @@ function ComputationsTab({ scratchpadActive, loadedGroups }: { scratchpadActive?
         ).filter(g => g.cards.length > 0 || g.id !== 'ungrouped-project'));
         setMenuOpen(null);
         setConfirmDelete(null);
+    };
+
+    const editCard = (groupId: string, card: ComputationCard) => {
+        setCqlInput(card.expression);
+        setEditingCard({ groupId, cardId: card.id });
+        setMenuOpen(null);
+    };
+
+    const removeGroup = (groupId: string) => {
+        // For loaded groups, ask parent to unload; for ad-hoc, remove locally
+        const isLoadedGroup = loadedGroups.some(g => g.id === groupId);
+        if (isLoadedGroup) {
+            onUnloadGroup(groupId);
+        } else {
+            setAdHocGroups(prev => prev.filter(g => g.id !== groupId));
+        }
+        setGroupMenuOpen(null);
+        setConfirmRemoveGroup(null);
     };
 
     const addGroup = () => {
@@ -473,17 +508,48 @@ function ComputationsTab({ scratchpadActive, loadedGroups }: { scratchpadActive?
                 {groups.map(group => (
                     <div key={group.id} className="rounded-lg border border-border/40 overflow-hidden">
                         {/* Group header */}
-                        <button onClick={() => toggleGroup(group.id)}
-                            className="w-full flex items-center gap-2 px-2.5 py-2 bg-muted/20 hover:bg-muted/40 transition-colors text-left">
-                            {group.collapsed
-                                ? <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                                : <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />}
-                            <span className="text-xs font-medium flex-1 truncate">{group.name}</span>
-                            <span className="text-[9px] text-muted-foreground/40 truncate max-w-[100px] shrink-0">
-                                › {provenanceBadge(group)}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">{group.cards.length}</span>
-                        </button>
+                        <div className="flex items-center gap-2 px-2.5 py-2 bg-muted/20 hover:bg-muted/40 transition-colors">
+                            <button onClick={() => toggleGroup(group.id)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
+                                {group.collapsed
+                                    ? <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                                    : <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />}
+                                <span className="text-xs font-medium flex-1 truncate">{group.name}</span>
+                                <span className="text-[9px] text-muted-foreground/40 truncate max-w-[100px] shrink-0">
+                                    › {provenanceBadge(group)}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">{group.cards.length}</span>
+                            </button>
+                            {/* Group ⋮ menu */}
+                            <div className="relative shrink-0">
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setGroupMenuOpen(groupMenuOpen === group.id ? null : group.id); setConfirmRemoveGroup(null); }}
+                                    className="p-0.5 rounded text-muted-foreground/40 hover:text-foreground transition-colors"
+                                >
+                                    <MoreVertical className="h-3 w-3" />
+                                </button>
+                                {groupMenuOpen === group.id && (
+                                    <div className="absolute right-0 top-6 z-20 w-44 rounded-md border border-border bg-popover shadow-md py-0.5">
+                                        {confirmRemoveGroup === group.id ? (
+                                            <button onClick={() => removeGroup(group.id)}
+                                                className="w-full text-left px-2.5 py-1.5 text-[11px] text-destructive hover:bg-destructive/10 transition-colors">
+                                                Confirm remove?
+                                            </button>
+                                        ) : (
+                                            <>
+                                                <button onClick={() => setConfirmRemoveGroup(group.id)}
+                                                    className="w-full text-left px-2.5 py-1.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
+                                                    Remove from Computations
+                                                </button>
+                                                <button onClick={() => { /* TODO: Edit Associations picker */ setGroupMenuOpen(null); }}
+                                                    className="w-full text-left px-2.5 py-1.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
+                                                    Edit Associations…
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
 
                         {/* Cards */}
                         {!group.collapsed && (
@@ -512,6 +578,10 @@ function ComputationsTab({ scratchpadActive, loadedGroups }: { scratchpadActive?
                                                             </button>
                                                         ) : (
                                                             <>
+                                                                <button onClick={() => editCard(group.id, card)}
+                                                                    className="w-full text-left px-2.5 py-1.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
+                                                                    Edit
+                                                                </button>
                                                                 <button onClick={() => setConfirmDelete(card.id)}
                                                                     className="w-full text-left px-2.5 py-1.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
                                                                     Delete
