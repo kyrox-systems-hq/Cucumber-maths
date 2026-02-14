@@ -1,4 +1,4 @@
-import { Plus, Table2, BarChart3, Type, Hash, Code2, Database, ListChecks, Layout, FileSearch, ArrowRightLeft, Play, MessageSquare, ClipboardCheck, ChevronRight, Eye, Pencil, Trash2, CheckCircle2, X as XIcon, GripVertical, FileEdit, Send, ChevronDown } from 'lucide-react';
+import { Plus, Table2, BarChart3, Type, Hash, Code2, Database, ListChecks, Layout, FileSearch, ArrowRightLeft, Play, MessageSquare, ClipboardCheck, ChevronRight, Eye, Pencil, Trash2, CheckCircle2, X as XIcon, GripVertical, FileEdit, Send, ChevronDown, MoreVertical } from 'lucide-react';
 import { cn } from '@client/lib/utils';
 import { useState } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@client/components/ui/tabs';
@@ -453,9 +453,9 @@ const TABLE_NAME_MAP: Record<string, string> = {
 };
 
 const STAGES = [
-    { id: 'raw' as const, label: 'Raw' },
-    { id: 'cleaned' as const, label: 'Cleaned' },
-    { id: 'transformed' as const, label: 'Transformed' },
+    { id: 'raw' as const, label: 'Raw', tooltip: 'Original imported data, unmodified' },
+    { id: 'cleaned' as const, label: 'Cleaned', tooltip: 'Nulls handled, types fixed, duplicates removed' },
+    { id: 'transformed' as const, label: 'Transformed', tooltip: 'Derived columns, joins, aggregations applied' },
 ];
 
 interface FilterChip {
@@ -473,6 +473,13 @@ interface Calculation {
     value: string;
 }
 
+interface ComputedColumn {
+    id: string;
+    name: string;
+    expression: string;
+    values: string[];
+}
+
 interface DataPanelState {
     id: number;
     datasetId: string;
@@ -480,6 +487,8 @@ interface DataPanelState {
     selectedColumn: string | null;
     filters: FilterChip[];
     calculations: Calculation[];
+    cellOverrides: Record<string, string>;
+    computedColumns: ComputedColumn[];
 }
 
 const CQL_FUNCTIONS = [
@@ -517,7 +526,7 @@ interface PanelRow {
 
 function DataInspectionTab({ selectedTableId }: { selectedTableId: string | null }) {
     const [panels, setPanels] = useState<DataPanelState[]>([
-        { id: 1, datasetId: 'sales', stage: 'raw', selectedColumn: null, filters: [], calculations: [] },
+        { id: 1, datasetId: 'sales', stage: 'raw', selectedColumn: null, filters: [], calculations: [], cellOverrides: {}, computedColumns: [] },
     ]);
     const [rows, setRows] = useState<PanelRow[]>([{ id: 1, panelIds: [1] }]);
     const [dragPanelId, setDragPanelId] = useState<number | null>(null);
@@ -537,7 +546,7 @@ function DataInspectionTab({ selectedTableId }: { selectedTableId: string | null
         const newId = nextPanelId++;
         const newPanel: DataPanelState = {
             id: newId, datasetId: selectedTableId, stage: 'raw',
-            selectedColumn: null, filters: [], calculations: [],
+            selectedColumn: null, filters: [], calculations: [], cellOverrides: {}, computedColumns: [],
         };
         setPanels(prev => [...prev, newPanel]);
         setRows(prev => {
@@ -705,6 +714,72 @@ function SingleDataPanel({
 }) {
     const [filterInput, setFilterInput] = useState('');
     const [showFilters, setShowFilters] = useState(false);
+    const [editingCell, setEditingCell] = useState<{ row: number; col: number } | null>(null);
+    const [editValue, setEditValue] = useState('');
+    const [showAddColumn, setShowAddColumn] = useState(false);
+    const [newColName, setNewColName] = useState('');
+    const [newColExpr, setNewColExpr] = useState('');
+    const [computedColMenu, setComputedColMenu] = useState<string | null>(null);
+    const [editingComputedCol, setEditingComputedCol] = useState<string | null>(null);
+    const [editColName, setEditColName] = useState('');
+    const [editColExpr, setEditColExpr] = useState('');
+
+    const startEditCell = (row: number, col: number, currentValue: string) => {
+        setEditingCell({ row, col });
+        setEditValue(currentValue);
+    };
+
+    const commitEditCell = () => {
+        if (!editingCell) return;
+        const key = `${editingCell.row}-${editingCell.col}`;
+        onUpdate({ cellOverrides: { ...panel.cellOverrides, [key]: editValue } });
+        setEditingCell(null);
+    };
+
+    const cancelEditCell = () => {
+        setEditingCell(null);
+    };
+
+    const addComputedColumn = () => {
+        if (!newColName.trim() || !newColExpr.trim()) return;
+        // Generate mock values per row
+        const values = dataset.rows.map(() => {
+            // Simple mock: try to evaluate as a constant or return placeholder
+            return '—';
+        });
+        const col: ComputedColumn = {
+            id: `cc-${Date.now()}`,
+            name: newColName.trim(),
+            expression: newColExpr.trim(),
+            values,
+        };
+        onUpdate({ computedColumns: [...panel.computedColumns, col] });
+        setNewColName('');
+        setNewColExpr('');
+        setShowAddColumn(false);
+    };
+
+    const deleteComputedColumn = (colId: string) => {
+        onUpdate({ computedColumns: panel.computedColumns.filter(c => c.id !== colId) });
+        setComputedColMenu(null);
+    };
+
+    const startEditComputedCol = (col: ComputedColumn) => {
+        setEditingComputedCol(col.id);
+        setEditColName(col.name);
+        setEditColExpr(col.expression);
+        setComputedColMenu(null);
+    };
+
+    const commitEditComputedCol = () => {
+        if (!editingComputedCol) return;
+        onUpdate({
+            computedColumns: panel.computedColumns.map(c =>
+                c.id === editingComputedCol ? { ...c, name: editColName.trim() || c.name, expression: editColExpr.trim() || c.expression } : c
+            ),
+        });
+        setEditingComputedCol(null);
+    };
 
     const dataset = SAMPLE_DATASETS.find(d => d.id === panel.datasetId) ?? SAMPLE_DATASETS[0];
 
@@ -763,7 +838,7 @@ function SingleDataPanel({
                         <button key={s.id} onClick={() => onUpdate({ stage: s.id })}
                             className={cn('px-1.5 py-0.5 rounded text-[10px] transition-colors shrink-0',
                                 panel.stage === s.id ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground/60 hover:text-foreground'
-                            )} title={s.label}>{s.label}</button>
+                            )} title={s.tooltip}>{s.label}</button>
                     ))}
                 </div>
                 <div className="flex-1 min-w-0" />
@@ -841,25 +916,122 @@ function SingleDataPanel({
                                     </div>
                                 </th>
                             ))}
+                            {/* Computed column headers */}
+                            {panel.computedColumns.map(cc => (
+                                <th key={cc.id}
+                                    className="text-left py-2 px-3 text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap text-primary/80 border-l-2 border-l-primary/30 bg-primary/5 relative"
+                                >
+                                    {editingComputedCol === cc.id ? (
+                                        <div className="flex items-center gap-1">
+                                            <input value={editColName} onChange={e => setEditColName(e.target.value)}
+                                                onKeyDown={e => { if (e.key === 'Enter') commitEditComputedCol(); if (e.key === 'Escape') setEditingComputedCol(null); }}
+                                                className="bg-transparent border-b border-primary/50 outline-none text-[11px] font-semibold uppercase w-16 text-primary"
+                                                autoFocus />
+                                            <span className="text-[8px] text-muted-foreground/50">Enter to save</span>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-1">
+                                            <span className="italic">{cc.name}</span>
+                                            <span className="text-[9px] font-normal opacity-50 font-mono" title={cc.expression}>ƒ</span>
+                                            <div className="relative ml-auto">
+                                                <button onClick={e => { e.stopPropagation(); setComputedColMenu(computedColMenu === cc.id ? null : cc.id); }}
+                                                    className="p-0.5 rounded text-muted-foreground/40 hover:text-foreground transition-colors">
+                                                    <MoreVertical className="h-3 w-3" />
+                                                </button>
+                                                {computedColMenu === cc.id && (
+                                                    <div className="absolute right-0 top-5 z-20 w-24 rounded-md border border-border bg-popover shadow-md py-0.5">
+                                                        <button onClick={() => startEditComputedCol(cc)}
+                                                            className="w-full text-left px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
+                                                            Edit
+                                                        </button>
+                                                        <button onClick={() => deleteComputedColumn(cc.id)}
+                                                            className="w-full text-left px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors">
+                                                            Delete
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </th>
+                            ))}
+                            {/* [+] add computed column */}
+                            <th className="py-2 px-2 whitespace-nowrap relative">
+                                <button onClick={() => setShowAddColumn(!showAddColumn)}
+                                    className="p-0.5 rounded text-muted-foreground/40 hover:text-primary transition-colors" title="Add computed column">
+                                    <Plus className="h-3.5 w-3.5" />
+                                </button>
+                                {showAddColumn && (
+                                    <div className="absolute right-0 top-8 z-20 w-52 rounded-md border border-border bg-popover shadow-lg p-2.5 space-y-1.5">
+                                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">New Computed Column</p>
+                                        <input value={newColName} onChange={e => setNewColName(e.target.value)}
+                                            placeholder="Column name" autoFocus
+                                            className="w-full bg-transparent border border-border/50 rounded px-2 py-1 text-[11px] outline-none focus:border-primary/50 placeholder:text-muted-foreground/40" />
+                                        <input value={newColExpr} onChange={e => setNewColExpr(e.target.value)}
+                                            onKeyDown={e => { if (e.key === 'Enter') addComputedColumn(); if (e.key === 'Escape') setShowAddColumn(false); }}
+                                            placeholder="Expression (e.g. revenue / units)"
+                                            className="w-full bg-transparent border border-border/50 rounded px-2 py-1 text-[11px] font-mono outline-none focus:border-primary/50 placeholder:text-muted-foreground/40" />
+                                        <div className="flex justify-end gap-1">
+                                            <button onClick={() => setShowAddColumn(false)}
+                                                className="text-[10px] text-muted-foreground hover:text-foreground transition-colors px-2 py-0.5">Cancel</button>
+                                            <button onClick={addComputedColumn}
+                                                disabled={!newColName.trim() || !newColExpr.trim()}
+                                                className="text-[10px] text-primary hover:text-primary/80 disabled:text-muted-foreground/30 transition-colors px-2 py-0.5 font-medium">Add</button>
+                                        </div>
+                                    </div>
+                                )}
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
                         {dataset.rows.map((row, i) => (
                             <tr key={i} className="border-b border-border/20 hover:bg-accent/30 transition-colors duration-150">
-                                {row.map((cell, j) => (
-                                    <td
-                                        key={j}
-                                        className={cn(
-                                            'py-1.5 px-3 text-xs whitespace-nowrap',
-                                            dataset.columnTypes[j] === 'id' ? 'font-medium font-mono' : '',
-                                            dataset.columnTypes[j] === 'numeric' ? 'font-mono text-muted-foreground' : '',
-                                            cell === '' ? 'bg-destructive/5' : '',
-                                            panel.selectedColumn === dataset.headers[j] ? 'bg-primary/5' : '',
-                                        )}
-                                    >
-                                        {cell === '' ? <span className="text-destructive text-[11px] italic">null</span> : cell}
+                                {row.map((rawCell, j) => {
+                                    const overrideKey = `${i}-${j}`;
+                                    const hasOverride = overrideKey in panel.cellOverrides;
+                                    const cell = hasOverride ? panel.cellOverrides[overrideKey] : rawCell;
+                                    const isEditing = editingCell?.row === i && editingCell?.col === j;
+                                    return (
+                                        <td
+                                            key={j}
+                                            onDoubleClick={() => startEditCell(i, j, cell === '' ? '' : cell)}
+                                            className={cn(
+                                                'py-1.5 px-3 text-xs whitespace-nowrap relative',
+                                                dataset.columnTypes[j] === 'id' ? 'font-medium font-mono' : '',
+                                                dataset.columnTypes[j] === 'numeric' ? 'font-mono text-muted-foreground' : '',
+                                                cell === '' && !isEditing ? 'bg-destructive/5' : '',
+                                                panel.selectedColumn === dataset.headers[j] ? 'bg-primary/5' : '',
+                                            )}
+                                        >
+                                            {isEditing ? (
+                                                <input
+                                                    value={editValue}
+                                                    onChange={e => setEditValue(e.target.value)}
+                                                    onKeyDown={e => { if (e.key === 'Enter') commitEditCell(); if (e.key === 'Escape') cancelEditCell(); }}
+                                                    onBlur={commitEditCell}
+                                                    autoFocus
+                                                    className="w-full bg-transparent outline-none text-xs border-b border-primary/50 py-0"
+                                                />
+                                            ) : (
+                                                <>
+                                                    {cell === '' ? <span className="text-destructive text-[11px] italic">null</span> : cell}
+                                                    {hasOverride && (
+                                                        <span className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-blue-500" title="Edited" />
+                                                    )}
+                                                </>
+                                            )}
+                                        </td>
+                                    );
+                                })}
+                                {/* Computed column cells */}
+                                {panel.computedColumns.map(cc => (
+                                    <td key={cc.id}
+                                        className="py-1.5 px-3 text-xs whitespace-nowrap font-mono text-muted-foreground border-l-2 border-l-primary/30 bg-primary/5">
+                                        {cc.values[i] ?? '—'}
                                     </td>
                                 ))}
+                                {/* Spacer for [+] column */}
+                                {panel.computedColumns.length > 0 || <td />}
                             </tr>
                         ))}
                     </tbody>
