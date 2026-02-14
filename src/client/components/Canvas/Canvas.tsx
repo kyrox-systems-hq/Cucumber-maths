@@ -1097,27 +1097,32 @@ function MockTable() {
 
 /* ─── Scratchpad Tab ─── */
 
-interface ScratchpadCell {
-    id: string;
-    type: 'cql' | 'prose';
-    content: string;
-    result?: string;
-}
-
 interface Scratchpad {
     id: string;
     name: string;
-    cells: ScratchpadCell[];
+    content: string;
 }
 
 const INITIAL_PADS: Scratchpad[] = [
     {
         id: 'pad-1', name: 'Revenue Analysis',
-        cells: [
-            { id: 'c1', type: 'cql', content: 'SUM(sales.revenue)\nWHERE region = \'EMEA\'\n  AND quarter IN (Q3, Q4)\nGROUP BY product_category', result: '$2,847,300' },
-            { id: 'c2', type: 'prose', content: 'Based on the above, EMEA shows a 12% YoY decline. We need to investigate:\n\n1. Which product categories dropped most?\n2. Is this seasonal or structural?\n3. What does the customer churn rate look like?' },
-            { id: 'c3', type: 'cql', content: 'COUNT(DISTINCT customers.id)\nWHERE customers.region = \'EMEA\'\n  AND customers.last_order_date < \'2025-10-01\'', result: '1,847' },
-        ],
+        content: `EMEA is showing a potential 12% YoY revenue decline. Let me investigate what's driving this.
+
+First, get total revenue by product category:
+
+/SUM(sales.revenue)
+  @region = 'EMEA'
+  @quarter IN (Q3, Q4)
+  GROUP BY product_category
+
+Then check customer churn — how many EMEA customers haven't ordered since October?
+
+/COUNT(DISTINCT customers.id)
+  @region = 'EMEA'
+  @last_order_date < '2025-10-01'
+
+If churn is above 1,500 we should flag this for the Q1 strategy review.
+Create a summary table with both results grouped by category.`,
     },
 ];
 
@@ -1128,38 +1133,18 @@ function ScratchpadTab() {
 
     const activePad = pads.find(p => p.id === activePadId) || pads[0];
 
-    const updateCell = (cellId: string, updates: Partial<ScratchpadCell>) => {
-        setPads(prev => prev.map(p => p.id !== activePadId ? p : {
-            ...p, cells: p.cells.map(c => c.id === cellId ? { ...c, ...updates } : c),
-        }));
-    };
-
-    const deleteCell = (cellId: string) => {
-        setPads(prev => prev.map(p => p.id !== activePadId ? p : {
-            ...p, cells: p.cells.filter(c => c.id !== cellId),
-        }));
-    };
-
-    const addCell = (type: 'cql' | 'prose') => {
-        const cell: ScratchpadCell = { id: `sc-${Date.now()}`, type, content: '' };
-        setPads(prev => prev.map(p => p.id !== activePadId ? p : {
-            ...p, cells: [...p.cells, cell],
-        }));
-    };
-
-    const runCell = (cellId: string) => {
-        // Mock execution — assign a random-ish result
-        const fakeResults = ['$6,752', '1,204', '$524.30', '84,201', '42.7%', '$2.4M', '12,847', '—'];
-        const result = fakeResults[Math.floor(Math.random() * fakeResults.length)];
-        updateCell(cellId, { result });
+    const updateContent = (content: string) => {
+        setPads(prev => prev.map(p => p.id === activePadId ? { ...p, content } : p));
     };
 
     const addPad = () => {
-        const pad: Scratchpad = { id: `pad-${Date.now()}`, name: `Scratchpad ${pads.length + 1}`, cells: [] };
+        const pad: Scratchpad = { id: `pad-${Date.now()}`, name: `Scratchpad ${pads.length + 1}`, content: '' };
         setPads(prev => [...prev, pad]);
         setActivePadId(pad.id);
         setPadMenuOpen(false);
     };
+
+    const wordCount = activePad.content.trim() ? activePad.content.trim().split(/\s+/).length : 0;
 
     return (
         <div className="flex flex-col h-full">
@@ -1186,7 +1171,6 @@ function ScratchpadTab() {
                                     )}
                                 >
                                     {p.name}
-                                    <span className="text-muted-foreground/50 ml-1">({p.cells.length} cells)</span>
                                 </button>
                             ))}
                             <div className="border-t border-border/50 mt-1 pt-1">
@@ -1202,92 +1186,35 @@ function ScratchpadTab() {
                 </div>
             </div>
 
-            {/* Cells */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {activePad.cells.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-12 text-center">
-                        <FileEdit className="h-8 w-8 text-muted-foreground/30 mb-3" />
-                        <p className="text-sm text-muted-foreground/60 mb-1">Empty scratchpad</p>
-                        <p className="text-xs text-muted-foreground/40">Add a CQL or Prose cell below to get started</p>
-                    </div>
-                )}
-                {activePad.cells.map(cell => (
-                    <div key={cell.id} className="rounded-lg border border-border/50 bg-card overflow-hidden">
-                        {/* Cell header */}
-                        <div className="flex items-center justify-between px-3 py-1.5 bg-muted/30 border-b border-border/30">
-                            <span className={cn(
-                                'text-[10px] font-mono uppercase tracking-wider',
-                                cell.type === 'cql' ? 'text-primary/70' : 'text-green-500/70',
-                            )}>
-                                {cell.type}
-                            </span>
-                            <div className="flex items-center gap-1">
-                                {cell.type === 'cql' && (
-                                    <button
-                                        onClick={() => runCell(cell.id)}
-                                        className="flex items-center gap-0.5 text-[10px] text-primary hover:text-primary/80 transition-colors px-1.5 py-0.5 rounded hover:bg-primary/10"
-                                    >
-                                        <Play className="h-2.5 w-2.5" /> Run
-                                    </button>
-                                )}
-                                {cell.type === 'prose' && (
-                                    <button
-                                        className="flex items-center gap-0.5 text-[10px] text-green-600 hover:text-green-500 transition-colors px-1.5 py-0.5 rounded hover:bg-green-500/10"
-                                    >
-                                        <Send className="h-2.5 w-2.5" /> Chat
-                                    </button>
-                                )}
-                                <button
-                                    onClick={() => deleteCell(cell.id)}
-                                    className="p-0.5 rounded text-muted-foreground/30 hover:text-red-400 transition-colors"
-                                >
-                                    <XIcon className="h-3 w-3" />
-                                </button>
-                            </div>
-                        </div>
-                        {/* Cell body */}
-                        <textarea
-                            value={cell.content}
-                            onChange={e => updateCell(cell.id, { content: e.target.value })}
-                            onKeyDown={e => {
-                                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && cell.type === 'cql') {
-                                    e.preventDefault(); runCell(cell.id);
-                                }
-                            }}
-                            placeholder={cell.type === 'cql' ? 'Write CQL expression…' : 'Write your thoughts…'}
-                            className={cn(
-                                'w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground/30 outline-none resize-none p-3 leading-relaxed',
-                                cell.type === 'cql' ? 'font-mono' : 'font-sans',
-                            )}
-                            style={{ minHeight: cell.content ? `${Math.max(60, (cell.content.split('\n').length + 1) * 18)}px` : '60px' }}
-                        />
-                        {/* CQL result */}
-                        {cell.type === 'cql' && cell.result && (
-                            <div className="px-3 py-2 border-t border-border/30 bg-primary/5">
-                                <div className="flex items-center gap-1.5">
-                                    <CheckCircle2 className="h-3 w-3 text-primary/60" />
-                                    <span className="text-xs text-muted-foreground">Result:</span>
-                                    <span className="text-sm font-semibold text-primary font-mono">{cell.result}</span>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                ))}
+            {/* Unified editor */}
+            <div className="flex-1 overflow-y-auto p-4">
+                <textarea
+                    value={activePad.content}
+                    onChange={e => updateContent(e.target.value)}
+                    onKeyDown={e => {
+                        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                            e.preventDefault();
+                            // TODO: send to Preview
+                        }
+                    }}
+                    placeholder="Write freely — mix prose with CQL using / and @ markers…"
+                    className="w-full h-full min-h-[300px] bg-transparent text-sm text-foreground placeholder:text-muted-foreground/30 outline-none resize-none leading-relaxed"
+                />
             </div>
 
-            {/* Add cell buttons */}
-            <div className="px-4 py-3 border-t border-border/30 shrink-0 flex items-center gap-2">
+            {/* Footer bar */}
+            <div className="px-4 py-2.5 border-t border-border/30 shrink-0 flex items-center justify-between">
+                <span className="text-[10px] text-muted-foreground/40">
+                    {wordCount} {wordCount === 1 ? 'word' : 'words'}
+                    <span className="mx-1.5">·</span>
+                    Ctrl+Enter to preview
+                </span>
                 <button
-                    onClick={() => addCell('cql')}
-                    className="flex items-center gap-1 text-[10px] text-primary hover:text-primary/80 border border-primary/20 hover:border-primary/40 rounded-md px-2.5 py-1.5 transition-colors"
+                    disabled={!activePad.content.trim()}
+                    className="flex items-center gap-1.5 text-[11px] font-medium text-primary hover:text-primary/80 disabled:text-muted-foreground/30 border border-primary/20 hover:border-primary/40 disabled:border-border/30 rounded-md px-3 py-1.5 transition-colors"
                 >
-                    <Plus className="h-3 w-3" /> CQL Cell
-                </button>
-                <button
-                    onClick={() => addCell('prose')}
-                    className="flex items-center gap-1 text-[10px] text-green-600 hover:text-green-500 border border-green-500/20 hover:border-green-500/40 rounded-md px-2.5 py-1.5 transition-colors"
-                >
-                    <Plus className="h-3 w-3" /> Prose Cell
+                    <Eye className="h-3.5 w-3.5" />
+                    Send to Preview
                 </button>
             </div>
         </div>
