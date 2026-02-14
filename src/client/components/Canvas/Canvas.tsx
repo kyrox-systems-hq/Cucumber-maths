@@ -1,4 +1,4 @@
-import { Plus, Table2, BarChart3, Type, Hash, Code2, Database, ListChecks, Layout, FileSearch, ArrowRightLeft, Play, MessageSquare, ClipboardCheck, ChevronRight, Eye, Pencil, Trash2, CheckCircle2, X as XIcon, GripVertical } from 'lucide-react';
+import { Plus, Table2, BarChart3, Type, Hash, Code2, Database, ListChecks, Layout, FileSearch, ArrowRightLeft, Play, MessageSquare, ClipboardCheck, ChevronRight, Eye, Pencil, Trash2, CheckCircle2, X as XIcon, GripVertical, FileEdit, Send, ChevronDown } from 'lucide-react';
 import { cn } from '@client/lib/utils';
 import { useState } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@client/components/ui/tabs';
@@ -123,30 +123,45 @@ const MOCK_PREVIEW: PreviewStep[] | null = [
 
 /* ─── main component ─── */
 
-interface CanvasProps { className?: string; }
+interface CanvasProps {
+    className?: string;
+    onTabChange?: (tab: string) => void;
+}
 
-export function Canvas({ className }: CanvasProps) {
+export function Canvas({ className, onTabChange }: CanvasProps) {
     // In a real app, `hasPlan` would come from a global store/context
     // Toggle this to simulate an active execution preview
     const [hasPlan, setHasPlan] = useState(true);
-    const [activeTab, setActiveTab] = useState('canvas');
+    const [activeTab, setActiveTab] = useState('data');
+
+    const handleTabChange = (tab: string) => {
+        setActiveTab(tab);
+        onTabChange?.(tab);
+    };
 
     const simulatePrompt = () => {
         setHasPlan(true);
-        setActiveTab('preview');
+        handleTabChange('preview');
     };
 
     const dismissPreview = () => {
         setHasPlan(false);
-        setActiveTab('canvas');
+        handleTabChange('data');
     };
 
     return (
         <div className={cn('flex flex-col h-full bg-background overflow-hidden', className)}>
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
+            <Tabs value={activeTab} onValueChange={handleTabChange} className="flex flex-col h-full">
                 {/* Tab bar */}
                 <div className="flex items-center justify-between px-4 py-1.5 border-b border-border bg-card shrink-0">
                     <TabsList className="h-8 bg-transparent p-0 gap-1">
+                        <TabsTrigger
+                            value="scratchpad"
+                            className="h-7 px-3 text-xs rounded-md data-[state=active]:bg-accent data-[state=active]:text-foreground text-muted-foreground"
+                        >
+                            <FileEdit className="h-3 w-3 mr-1.5" />
+                            Scratchpad
+                        </TabsTrigger>
                         <TabsTrigger
                             value="data"
                             className="h-7 px-3 text-xs rounded-md data-[state=active]:bg-accent data-[state=active]:text-foreground text-muted-foreground"
@@ -189,6 +204,11 @@ export function Canvas({ className }: CanvasProps) {
                         <Plus className="h-3 w-3" /> Add block
                     </button>
                 </div>
+
+                {/* Scratchpad tab */}
+                <TabsContent value="scratchpad" className="flex-1 mt-0 overflow-y-auto">
+                    <ScratchpadTab />
+                </TabsContent>
 
                 {/* Data tab */}
                 <TabsContent value="data" className="flex-1 mt-0 overflow-y-auto">
@@ -1071,6 +1091,205 @@ function MockTable() {
                     ))}
                 </tbody>
             </table>
+        </div>
+    );
+}
+
+/* ─── Scratchpad Tab ─── */
+
+interface ScratchpadCell {
+    id: string;
+    type: 'cql' | 'prose';
+    content: string;
+    result?: string;
+}
+
+interface Scratchpad {
+    id: string;
+    name: string;
+    cells: ScratchpadCell[];
+}
+
+const INITIAL_PADS: Scratchpad[] = [
+    {
+        id: 'pad-1', name: 'Revenue Analysis',
+        cells: [
+            { id: 'c1', type: 'cql', content: 'SUM(sales.revenue)\nWHERE region = \'EMEA\'\n  AND quarter IN (Q3, Q4)\nGROUP BY product_category', result: '$2,847,300' },
+            { id: 'c2', type: 'prose', content: 'Based on the above, EMEA shows a 12% YoY decline. We need to investigate:\n\n1. Which product categories dropped most?\n2. Is this seasonal or structural?\n3. What does the customer churn rate look like?' },
+            { id: 'c3', type: 'cql', content: 'COUNT(DISTINCT customers.id)\nWHERE customers.region = \'EMEA\'\n  AND customers.last_order_date < \'2025-10-01\'', result: '1,847' },
+        ],
+    },
+];
+
+function ScratchpadTab() {
+    const [pads, setPads] = useState<Scratchpad[]>(INITIAL_PADS);
+    const [activePadId, setActivePadId] = useState(INITIAL_PADS[0].id);
+    const [padMenuOpen, setPadMenuOpen] = useState(false);
+
+    const activePad = pads.find(p => p.id === activePadId) || pads[0];
+
+    const updateCell = (cellId: string, updates: Partial<ScratchpadCell>) => {
+        setPads(prev => prev.map(p => p.id !== activePadId ? p : {
+            ...p, cells: p.cells.map(c => c.id === cellId ? { ...c, ...updates } : c),
+        }));
+    };
+
+    const deleteCell = (cellId: string) => {
+        setPads(prev => prev.map(p => p.id !== activePadId ? p : {
+            ...p, cells: p.cells.filter(c => c.id !== cellId),
+        }));
+    };
+
+    const addCell = (type: 'cql' | 'prose') => {
+        const cell: ScratchpadCell = { id: `sc-${Date.now()}`, type, content: '' };
+        setPads(prev => prev.map(p => p.id !== activePadId ? p : {
+            ...p, cells: [...p.cells, cell],
+        }));
+    };
+
+    const runCell = (cellId: string) => {
+        // Mock execution — assign a random-ish result
+        const fakeResults = ['$6,752', '1,204', '$524.30', '84,201', '42.7%', '$2.4M', '12,847', '—'];
+        const result = fakeResults[Math.floor(Math.random() * fakeResults.length)];
+        updateCell(cellId, { result });
+    };
+
+    const addPad = () => {
+        const pad: Scratchpad = { id: `pad-${Date.now()}`, name: `Scratchpad ${pads.length + 1}`, cells: [] };
+        setPads(prev => [...prev, pad]);
+        setActivePadId(pad.id);
+        setPadMenuOpen(false);
+    };
+
+    return (
+        <div className="flex flex-col h-full">
+            {/* Pad selector header */}
+            <div className="px-4 pt-3 pb-2 border-b border-border/30 shrink-0">
+                <div className="relative">
+                    <button
+                        onClick={() => setPadMenuOpen(!padMenuOpen)}
+                        className="flex items-center gap-1.5 text-xs font-medium text-foreground hover:text-primary transition-colors"
+                    >
+                        <FileEdit className="h-3.5 w-3.5 text-muted-foreground" />
+                        {activePad.name}
+                        <ChevronDown className={cn('h-3 w-3 text-muted-foreground transition-transform duration-150', padMenuOpen && 'rotate-180')} />
+                    </button>
+                    {padMenuOpen && (
+                        <div className="absolute top-full left-0 mt-1 z-50 min-w-[180px] rounded-md border border-border bg-popover shadow-lg py-1">
+                            {pads.map(p => (
+                                <button
+                                    key={p.id}
+                                    onClick={() => { setActivePadId(p.id); setPadMenuOpen(false); }}
+                                    className={cn(
+                                        'w-full text-left px-3 py-1.5 text-xs hover:bg-accent transition-colors',
+                                        p.id === activePadId ? 'text-primary font-medium' : 'text-foreground',
+                                    )}
+                                >
+                                    {p.name}
+                                    <span className="text-muted-foreground/50 ml-1">({p.cells.length} cells)</span>
+                                </button>
+                            ))}
+                            <div className="border-t border-border/50 mt-1 pt-1">
+                                <button
+                                    onClick={addPad}
+                                    className="w-full text-left px-3 py-1.5 text-xs text-primary hover:bg-accent transition-colors flex items-center gap-1"
+                                >
+                                    <Plus className="h-3 w-3" /> New Scratchpad
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Cells */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {activePad.cells.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                        <FileEdit className="h-8 w-8 text-muted-foreground/30 mb-3" />
+                        <p className="text-sm text-muted-foreground/60 mb-1">Empty scratchpad</p>
+                        <p className="text-xs text-muted-foreground/40">Add a CQL or Prose cell below to get started</p>
+                    </div>
+                )}
+                {activePad.cells.map(cell => (
+                    <div key={cell.id} className="rounded-lg border border-border/50 bg-card overflow-hidden">
+                        {/* Cell header */}
+                        <div className="flex items-center justify-between px-3 py-1.5 bg-muted/30 border-b border-border/30">
+                            <span className={cn(
+                                'text-[10px] font-mono uppercase tracking-wider',
+                                cell.type === 'cql' ? 'text-primary/70' : 'text-green-500/70',
+                            )}>
+                                {cell.type}
+                            </span>
+                            <div className="flex items-center gap-1">
+                                {cell.type === 'cql' && (
+                                    <button
+                                        onClick={() => runCell(cell.id)}
+                                        className="flex items-center gap-0.5 text-[10px] text-primary hover:text-primary/80 transition-colors px-1.5 py-0.5 rounded hover:bg-primary/10"
+                                    >
+                                        <Play className="h-2.5 w-2.5" /> Run
+                                    </button>
+                                )}
+                                {cell.type === 'prose' && (
+                                    <button
+                                        className="flex items-center gap-0.5 text-[10px] text-green-600 hover:text-green-500 transition-colors px-1.5 py-0.5 rounded hover:bg-green-500/10"
+                                    >
+                                        <Send className="h-2.5 w-2.5" /> Chat
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => deleteCell(cell.id)}
+                                    className="p-0.5 rounded text-muted-foreground/30 hover:text-red-400 transition-colors"
+                                >
+                                    <XIcon className="h-3 w-3" />
+                                </button>
+                            </div>
+                        </div>
+                        {/* Cell body */}
+                        <textarea
+                            value={cell.content}
+                            onChange={e => updateCell(cell.id, { content: e.target.value })}
+                            onKeyDown={e => {
+                                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && cell.type === 'cql') {
+                                    e.preventDefault(); runCell(cell.id);
+                                }
+                            }}
+                            placeholder={cell.type === 'cql' ? 'Write CQL expression…' : 'Write your thoughts…'}
+                            className={cn(
+                                'w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground/30 outline-none resize-none p-3 leading-relaxed',
+                                cell.type === 'cql' ? 'font-mono' : 'font-sans',
+                            )}
+                            style={{ minHeight: cell.content ? `${Math.max(60, (cell.content.split('\n').length + 1) * 18)}px` : '60px' }}
+                        />
+                        {/* CQL result */}
+                        {cell.type === 'cql' && cell.result && (
+                            <div className="px-3 py-2 border-t border-border/30 bg-primary/5">
+                                <div className="flex items-center gap-1.5">
+                                    <CheckCircle2 className="h-3 w-3 text-primary/60" />
+                                    <span className="text-xs text-muted-foreground">Result:</span>
+                                    <span className="text-sm font-semibold text-primary font-mono">{cell.result}</span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
+
+            {/* Add cell buttons */}
+            <div className="px-4 py-3 border-t border-border/30 shrink-0 flex items-center gap-2">
+                <button
+                    onClick={() => addCell('cql')}
+                    className="flex items-center gap-1 text-[10px] text-primary hover:text-primary/80 border border-primary/20 hover:border-primary/40 rounded-md px-2.5 py-1.5 transition-colors"
+                >
+                    <Plus className="h-3 w-3" /> CQL Cell
+                </button>
+                <button
+                    onClick={() => addCell('prose')}
+                    className="flex items-center gap-1 text-[10px] text-green-600 hover:text-green-500 border border-green-500/20 hover:border-green-500/40 rounded-md px-2.5 py-1.5 transition-colors"
+                >
+                    <Plus className="h-3 w-3" /> Prose Cell
+                </button>
+            </div>
         </div>
     );
 }

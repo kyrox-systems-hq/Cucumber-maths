@@ -4,12 +4,20 @@ import { ChatPanel } from '@client/components/Chat/ChatPanel';
 import { Canvas } from '@client/components/Canvas/Canvas';
 import { useLayoutPreference } from '@client/hooks/useLayoutPreference';
 import { Group, Panel, Separator } from 'react-resizable-panels';
+import { useState } from 'react';
 
 export default function App() {
     const { chatSide, swapSidebars } = useLayoutPreference();
+    const [centerTab, setCenterTab] = useState('data');
 
-    const leftPanel = chatSide === 'left' ? <ChatPanel /> : <DataPanel />;
-    const rightPanel = chatSide === 'left' ? <DataPanel /> : <ChatPanel />;
+    const scratchpadActive = centerTab === 'scratchpad';
+
+    const leftPanel = chatSide === 'left'
+        ? <ChatPanel scratchpadActive={scratchpadActive} />
+        : <DataPanel scratchpadActive={scratchpadActive} />;
+    const rightPanel = chatSide === 'left'
+        ? <DataPanel scratchpadActive={scratchpadActive} />
+        : <ChatPanel scratchpadActive={scratchpadActive} />;
 
     return (
         <div className="flex flex-col h-screen w-screen overflow-hidden bg-background text-foreground">
@@ -27,7 +35,7 @@ export default function App() {
                     </Panel>
                     <Separator className="w-px bg-border hover:bg-primary/30 transition-colors duration-150 cursor-col-resize" />
                     <Panel id="center" defaultSize={55} minSize="30" className="h-full">
-                        <Canvas />
+                        <Canvas onTabChange={setCenterTab} />
                     </Panel>
                     <Separator className="w-px bg-border hover:bg-primary/30 transition-colors duration-150 cursor-col-resize" />
                     <Panel

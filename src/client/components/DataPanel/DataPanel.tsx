@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Upload, Database, BarChart3, Hash, Type, Calendar, Cpu, Boxes, Calculator, ChevronDown, ChevronRight, MoreVertical, Plus } from 'lucide-react';
+import { Upload, Database, BarChart3, Hash, Type, Calendar, Cpu, Boxes, Calculator, ChevronDown, ChevronRight, MoreVertical, Plus, Maximize2, Minimize2, FileEdit } from 'lucide-react';
 import { cn } from '@client/lib/utils';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@client/components/ui/tabs';
 
@@ -79,9 +79,10 @@ function evalCQL(fn: string, column: string, datasetId: string): string {
 
 interface DataPanelProps {
     className?: string;
+    scratchpadActive?: boolean;
 }
 
-export function DataPanel({ className }: DataPanelProps) {
+export function DataPanel({ className, scratchpadActive }: DataPanelProps) {
     return (
         <div className={cn('flex flex-col h-full bg-card overflow-hidden', className)}>
             <Tabs defaultValue="sources" className="flex flex-col h-full">
@@ -213,7 +214,7 @@ export function DataPanel({ className }: DataPanelProps) {
                 </TabsContent>
 
                 {/* Computations tab */}
-                <ComputationsTab />
+                <ComputationsTab scratchpadActive={scratchpadActive} />
             </Tabs>
         </div>
     );
@@ -221,11 +222,12 @@ export function DataPanel({ className }: DataPanelProps) {
 
 /* ─── Computations Tab ─── */
 
-function ComputationsTab() {
+function ComputationsTab({ scratchpadActive }: { scratchpadActive?: boolean }) {
     const [groups, setGroups] = useState<ComputationGroup[]>(INITIAL_GROUPS);
     const [cqlInput, setCqlInput] = useState('');
     const [menuOpen, setMenuOpen] = useState<string | null>(null);
     const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+    const [expanded, setExpanded] = useState(false);
 
     const toggleGroup = (groupId: string) => {
         setGroups(prev => prev.map(g => g.id === groupId ? { ...g, collapsed: !g.collapsed } : g));
@@ -275,24 +277,65 @@ function ComputationsTab() {
         <TabsContent value="computations" className="flex-1 mt-0 overflow-y-auto">
             {/* CQL input */}
             <div className="px-3 pt-3 pb-2">
-                <div className="flex items-center gap-1.5">
-                    <input type="text" value={cqlInput} onChange={e => setCqlInput(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && addComputation()}
-                        placeholder="SUM(sales.revenue)"
-                        className="flex-1 min-w-0 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/40 outline-none border border-border/50 rounded-md px-2.5 py-1.5 font-mono focus:border-primary/50 transition-colors" />
-                    <button onClick={addComputation} disabled={!cqlInput.trim()}
-                        className="text-[10px] text-primary hover:text-primary/80 disabled:text-muted-foreground/30 transition-colors px-2 py-1.5 rounded-md border border-primary/20 hover:border-primary/40 disabled:border-border/30 shrink-0">
-                        Compute
-                    </button>
-                </div>
-                <div className="flex flex-wrap gap-1 mt-1.5">
-                    {CQL_FUNCTIONS.slice(0, 6).map(fn => (
-                        <button key={fn} onClick={() => setCqlInput(fn + '(')}
-                            className="text-[9px] text-muted-foreground/60 hover:text-primary border border-border/30 hover:border-primary/30 rounded px-1.5 py-0.5 transition-colors font-mono">
-                            {fn}
-                        </button>
-                    ))}
-                </div>
+                {scratchpadActive ? (
+                    <div className="flex items-center gap-2 rounded-md border border-border/30 bg-muted/30 px-2.5 py-2 cursor-not-allowed">
+                        <FileEdit className="h-3 w-3 text-muted-foreground/40" />
+                        <span className="text-[10px] text-muted-foreground/50 italic">Working in Scratchpad</span>
+                    </div>
+                ) : (
+                    <>
+                        <div className={cn(
+                            'flex gap-1.5 border border-border/50 rounded-md px-2.5 py-1.5 focus-within:border-primary/50 transition-all duration-200',
+                            expanded ? 'flex-col' : 'items-center',
+                        )}>
+                            {expanded ? (
+                                <textarea
+                                    value={cqlInput}
+                                    onChange={e => setCqlInput(e.target.value)}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Escape') { setExpanded(false); }
+                                        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                                            e.preventDefault(); addComputation();
+                                        }
+                                    }}
+                                    placeholder="Write a multi-line CQL expression…"
+                                    className="flex-1 min-w-0 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/40 outline-none resize-none font-mono leading-relaxed"
+                                    style={{ minHeight: '100px', maxHeight: '40vh' }}
+                                    autoFocus
+                                />
+                            ) : (
+                                <input type="text" value={cqlInput} onChange={e => setCqlInput(e.target.value)}
+                                    onKeyDown={e => e.key === 'Enter' && addComputation()}
+                                    placeholder="SUM(sales.revenue)"
+                                    className="flex-1 min-w-0 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/40 outline-none font-mono" />
+                            )}
+                            <div className="flex items-center gap-1 shrink-0 self-end">
+                                <button
+                                    onClick={() => setExpanded(!expanded)}
+                                    className="p-0.5 rounded text-muted-foreground/40 hover:text-foreground transition-colors"
+                                    title={expanded ? 'Collapse (Esc)' : 'Expand editor'}
+                                >
+                                    {expanded ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
+                                </button>
+                                <button onClick={addComputation} disabled={!cqlInput.trim()}
+                                    className="text-[10px] text-primary hover:text-primary/80 disabled:text-muted-foreground/30 transition-colors px-2 py-1 rounded-md border border-primary/20 hover:border-primary/40 disabled:border-border/30 shrink-0">
+                                    Compute
+                                </button>
+                            </div>
+                            {expanded && (
+                                <p className="text-[9px] text-muted-foreground/40 self-end">Ctrl+Enter to compute · Esc to collapse</p>
+                            )}
+                        </div>
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                            {CQL_FUNCTIONS.slice(0, 6).map(fn => (
+                                <button key={fn} onClick={() => setCqlInput(fn + '(')}
+                                    className="text-[9px] text-muted-foreground/60 hover:text-primary border border-border/30 hover:border-primary/30 rounded px-1.5 py-0.5 transition-colors font-mono">
+                                    {fn}
+                                </button>
+                            ))}
+                        </div>
+                    </>
+                )}
             </div>
 
             {/* Groups */}

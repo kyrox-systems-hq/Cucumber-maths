@@ -1,4 +1,4 @@
-import { MessageSquare, Send, Code2, Sparkles, Clock, BookOpen } from 'lucide-react';
+import { MessageSquare, Send, Code2, Sparkles, Clock, BookOpen, Maximize2, Minimize2, FileEdit } from 'lucide-react';
 import { cn } from '@client/lib/utils';
 import { useState } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@client/components/ui/tabs';
@@ -71,10 +71,12 @@ const MOCK_HISTORY = [
 
 interface ChatPanelProps {
     className?: string;
+    scratchpadActive?: boolean;
 }
 
-export function ChatPanel({ className }: ChatPanelProps) {
+export function ChatPanel({ className, scratchpadActive }: ChatPanelProps) {
     const [input, setInput] = useState('');
+    const [expanded, setExpanded] = useState(false);
 
     return (
         <div className={cn('flex flex-col h-full bg-card overflow-hidden', className)}>
@@ -165,26 +167,71 @@ export function ChatPanel({ className }: ChatPanelProps) {
 
                     {/* Input */}
                     <div className="px-3 pb-3 shrink-0">
-                        <div className="flex items-center gap-2 rounded-[10px] border border-border bg-background px-3 py-2 focus-within:border-primary/50 transition-colors duration-150">
-                            <input
-                                type="text"
-                                value={input}
-                                onChange={e => setInput(e.target.value)}
-                                placeholder="Ask anything or type CQL… e.g. SUM(revenue)"
-                                className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none"
-                            />
-                            <button
-                                className={cn(
-                                    'p-1 rounded-md transition-colors duration-150',
-                                    input.trim()
-                                        ? 'text-primary hover:bg-primary/10'
-                                        : 'text-muted-foreground/40 cursor-default',
+                        {scratchpadActive ? (
+                            <div className="flex items-center gap-2 rounded-[10px] border border-border/30 bg-muted/30 px-3 py-2.5 cursor-not-allowed">
+                                <FileEdit className="h-3.5 w-3.5 text-muted-foreground/40" />
+                                <span className="text-xs text-muted-foreground/50 italic">Working in Scratchpad</span>
+                            </div>
+                        ) : (
+                            <div className={cn(
+                                'flex gap-2 rounded-[10px] border border-border bg-background px-3 py-2 focus-within:border-primary/50 transition-all duration-200',
+                                expanded ? 'flex-col' : 'items-center',
+                            )}>
+                                {expanded ? (
+                                    <textarea
+                                        value={input}
+                                        onChange={e => setInput(e.target.value)}
+                                        onKeyDown={e => {
+                                            if (e.key === 'Escape') { setExpanded(false); }
+                                            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && input.trim()) {
+                                                e.preventDefault(); setInput('');
+                                            }
+                                        }}
+                                        placeholder="Write a complex query or multi-paragraph prompt…"
+                                        className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none resize-none font-mono leading-relaxed"
+                                        style={{ minHeight: '120px', maxHeight: '40vh' }}
+                                        autoFocus
+                                    />
+                                ) : (
+                                    <input
+                                        type="text"
+                                        value={input}
+                                        onChange={e => setInput(e.target.value)}
+                                        onKeyDown={e => {
+                                            if (e.key === 'Enter' && input.trim()) {
+                                                e.preventDefault(); setInput('');
+                                            }
+                                        }}
+                                        placeholder="Ask anything or type CQL… e.g. SUM(revenue)"
+                                        className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none"
+                                    />
                                 )}
-                                disabled={!input.trim()}
-                            >
-                                <Send className="h-3.5 w-3.5" />
-                            </button>
-                        </div>
+                                <div className="flex items-center gap-1 shrink-0 self-end">
+                                    <button
+                                        onClick={() => setExpanded(!expanded)}
+                                        className="p-1 rounded-md text-muted-foreground/50 hover:text-foreground transition-colors duration-150"
+                                        title={expanded ? 'Collapse (Esc)' : 'Expand editor'}
+                                    >
+                                        {expanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+                                    </button>
+                                    <button
+                                        className={cn(
+                                            'p-1 rounded-md transition-colors duration-150',
+                                            input.trim()
+                                                ? 'text-primary hover:bg-primary/10'
+                                                : 'text-muted-foreground/40 cursor-default',
+                                        )}
+                                        disabled={!input.trim()}
+                                        onClick={() => { if (input.trim()) setInput(''); }}
+                                    >
+                                        <Send className="h-3.5 w-3.5" />
+                                    </button>
+                                </div>
+                                {expanded && (
+                                    <p className="text-[9px] text-muted-foreground/40 self-end">Ctrl+Enter to send · Esc to collapse</p>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </TabsContent>
 
