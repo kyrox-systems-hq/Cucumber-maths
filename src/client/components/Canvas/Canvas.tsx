@@ -444,6 +444,14 @@ const TABLE_SOURCE_MAP: Record<string, string> = {
     'inventory-reorder': 'inventory.xlsx',
 };
 
+/* Map table ID → table display name (mirrors DataPanel's DATA_SOURCES tables) */
+const TABLE_NAME_MAP: Record<string, string> = {
+    'sales': 'sales_q4',
+    'customers': 'customers',
+    'inventory': 'stock_levels',
+    'inventory-reorder': 'reorder_history',
+};
+
 const STAGES = [
     { id: 'raw' as const, label: 'Raw' },
     { id: 'cleaned' as const, label: 'Cleaned' },
@@ -743,8 +751,8 @@ function SingleDataPanel({
                 onDragEnd={onDragEnd}
             >
                 <GripVertical className="h-3 w-3 text-muted-foreground/30 shrink-0" />
-                <span className="text-[13px] font-medium text-foreground truncate" title={dataset.name}>
-                    {dataset.name}
+                <span className="text-[13px] font-medium text-foreground truncate" title={TABLE_NAME_MAP[panel.datasetId] ?? dataset.name}>
+                    {TABLE_NAME_MAP[panel.datasetId] ?? dataset.name}
                 </span>
                 <span className="text-[10px] text-muted-foreground/50 shrink-0">›</span>
                 <span className="text-[10px] text-muted-foreground/60 truncate max-w-[100px]">
