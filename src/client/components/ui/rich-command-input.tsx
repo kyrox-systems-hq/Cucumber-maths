@@ -316,7 +316,7 @@ export function RichCommandInput({
                 className={cn(
                     'rich-command-input',
                     'outline-none text-sm text-foreground leading-relaxed whitespace-pre-wrap break-words',
-                    'empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground empty:before:pointer-events-none empty:before:block',
+                    'empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground empty:before:pointer-events-none empty:before:block empty:before:leading-normal',
                     disabled && 'opacity-40 pointer-events-none',
                     cqlOnly && 'font-mono',
                     editorClassName,
