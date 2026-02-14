@@ -981,21 +981,30 @@ function SingleDataPanel({
                                             el.style.right = `${window.innerWidth - rect.right}px`;
                                         }}
                                     >
-                                        {/* Row 1: Name = */}
-                                        <div className="flex items-center gap-1.5">
+                                        {/* Row 1: Name = (full width) */}
+                                        <div className="flex items-center gap-1">
                                             <input value={newColName} onChange={e => setNewColName(e.target.value)}
-                                                placeholder="Name" autoFocus
-                                                className="w-24 shrink-0 bg-transparent border border-border/50 rounded px-2 py-1 text-[11px] outline-none focus:border-primary/50 placeholder:text-muted-foreground/40" />
+                                                placeholder="Column name" autoFocus
+                                                className="flex-1 min-w-0 bg-transparent border border-border/50 rounded px-2 py-1 text-[11px] outline-none focus:border-primary/50 placeholder:text-muted-foreground/40" />
                                             <span className="text-[13px] font-mono text-muted-foreground/60 shrink-0">=</span>
                                         </div>
 
-                                        {/* Row 2: Expression (auto-expanding textarea) */}
-                                        <textarea value={newColExpr} onChange={e => setNewColExpr(e.target.value)}
-                                            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addComputedColumn(); } if (e.key === 'Escape') setShowAddColumn(false); }}
-                                            onInput={e => { const t = e.currentTarget; t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }}
-                                            placeholder="Expression"
-                                            rows={1}
-                                            className="w-full bg-transparent border border-border/50 rounded px-2 py-1.5 text-[11px] font-mono outline-none focus:border-primary/50 placeholder:text-muted-foreground/40 resize-none overflow-hidden leading-relaxed" />
+                                        {/* Row 2: Expression (RichCommandInput like Computations tab) */}
+                                        <div className="border border-border/50 rounded focus-within:border-primary/50 transition-colors">
+                                            <RichCommandInput
+                                                onChange={setNewColExpr}
+                                                placeholder="Expression…"
+                                                className="w-full"
+                                                editorClassName="text-[11px]"
+                                                minHeight="28px"
+                                                popupDirection="down"
+                                                cqlOnly
+                                                onKeyDown={e => {
+                                                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addComputedColumn(); }
+                                                    if (e.key === 'Escape') setShowAddColumn(false);
+                                                }}
+                                            />
+                                        </div>
 
                                         <div className="flex justify-end gap-1">
                                             <button onClick={() => setShowAddColumn(false)}
