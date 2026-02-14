@@ -450,88 +450,226 @@ function evalCQL(fn: string, column: string, datasetId: string): string {
 }
 
 let nextPanelId = 2;
+let nextRowId = 2;
+
+/* Row-based layout: each row holds panel IDs, rendered as a horizontal PanelGroup */
+interface PanelRow {
+    id: number;
+    panelIds: number[];
+}
+
+interface FormulaCard {
+    id: string;
+    expression: string;
+    dataset: string;
+    value: string;
+    name: string;
+}
 
 function DataInspectionTab() {
     const [panels, setPanels] = useState<DataPanelState[]>([
         { id: 1, datasetId: 'sales', stage: 'raw', selectedColumn: null, filters: [], calculations: [] },
     ]);
+    const [rows, setRows] = useState<PanelRow[]>([{ id: 1, panelIds: [1] }]);
+    const [dragPanelId, setDragPanelId] = useState<number | null>(null);
+    const [dropTarget, setDropTarget] = useState<string | null>(null);
+
+    /* Formula shelf state */
+    const [formulaCards, setFormulaCards] = useState<FormulaCard[]>([
+        { id: 'f1', expression: 'SUM(sales.revenue)', dataset: 'sales', value: '$6,965', name: 'total_revenue' },
+    ]);
+    const [formulaInput, setFormulaInput] = useState('');
 
     const addPanel = () => {
-        setPanels(prev => [...prev, {
-            id: nextPanelId++,
-            datasetId: 'sales',
-            stage: 'raw',
-            selectedColumn: null,
-            filters: [],
-            calculations: [],
-        }]);
+        const newId = nextPanelId++;
+        const newPanel: DataPanelState = {
+            id: newId, datasetId: 'sales', stage: 'raw',
+            selectedColumn: null, filters: [], calculations: [],
+        };
+        setPanels(prev => [...prev, newPanel]);
+        setRows(prev => {
+            const updated = [...prev];
+            updated[updated.length - 1] = {
+                ...updated[updated.length - 1],
+                panelIds: [...updated[updated.length - 1].panelIds, newId],
+            };
+            return updated;
+        });
     };
 
     const removePanel = (id: number) => {
-        setPanels(prev => prev.length > 1 ? prev.filter(p => p.id !== id) : prev);
+        if (panels.length <= 1) return;
+        setPanels(prev => prev.filter(p => p.id !== id));
+        setRows(prev => {
+            const updated = prev.map(r => ({
+                ...r,
+                panelIds: r.panelIds.filter(pid => pid !== id),
+            })).filter(r => r.panelIds.length > 0);
+            return updated.length > 0 ? updated : [{ id: nextRowId++, panelIds: [] }];
+        });
     };
 
     const updatePanel = (id: number, updates: Partial<DataPanelState>) => {
         setPanels(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
     };
 
+    /* Drag-and-drop: move panel between rows */
+    const handleDragStart = (panelId: number) => { setDragPanelId(panelId); };
+    const handleDragEnd = () => { setDragPanelId(null); setDropTarget(null); };
+
+    const handleDropOnRow = (targetRowId: number) => {
+        if (dragPanelId === null) return;
+        setRows(prev => {
+            let updated = prev.map(r => ({ ...r, panelIds: r.panelIds.filter(pid => pid !== dragPanelId) }));
+            updated = updated.map(r => r.id === targetRowId ? { ...r, panelIds: [...r.panelIds, dragPanelId] } : r);
+            return updated.filter(r => r.panelIds.length > 0);
+        });
+        setDragPanelId(null); setDropTarget(null);
+    };
+
+    const handleDropNewRow = (afterRowId: number | null) => {
+        if (dragPanelId === null) return;
+        setRows(prev => {
+            let updated = prev.map(r => ({ ...r, panelIds: r.panelIds.filter(pid => pid !== dragPanelId) }));
+            updated = updated.filter(r => r.panelIds.length > 0);
+            const newRow: PanelRow = { id: nextRowId++, panelIds: [dragPanelId] };
+            if (afterRowId === null) { updated.push(newRow); }
+            else { const idx = updated.findIndex(r => r.id === afterRowId); updated.splice(idx + 1, 0, newRow); }
+            return updated;
+        });
+        setDragPanelId(null); setDropTarget(null);
+    };
+
+    /* Formula shelf actions */
+    const addFormula = () => {
+        if (!formulaInput.trim()) return;
+        const expr = formulaInput.trim();
+        const match = expr.match(/^(\w+)\((\w+)\.(\w+)\)$/);
+        let value = '—';
+        let dataset = 'sales';
+        if (match) { const [, fn, ds, col] = match; dataset = ds; value = evalCQL(fn.toUpperCase(), col, ds); }
+        setFormulaCards(prev => [...prev, {
+            id: `fc-${Date.now()}`, expression: expr, dataset, value,
+            name: expr.toLowerCase().replace(/[^a-z0-9_]/g, '_'),
+        }]);
+        setFormulaInput('');
+    };
+
+    const removeFormula = (id: string) => { setFormulaCards(prev => prev.filter(c => c.id !== id)); };
+
     return (
         <div className="flex flex-col h-full">
             {/* Toolbar */}
             <div className="flex items-center gap-2 px-4 py-1.5 border-b border-border/50 shrink-0">
                 <FileSearch className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Data Inspector
-                </span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Data Inspector</span>
                 <span className="text-[10px] text-muted-foreground font-mono">
-                    {panels.length} {panels.length === 1 ? 'panel' : 'panels'}
+                    {panels.length} {panels.length === 1 ? 'panel' : 'panels'} · {rows.length} {rows.length === 1 ? 'row' : 'rows'}
                 </span>
-                <button
-                    onClick={addPanel}
-                    className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors duration-150 px-2 py-0.5 rounded-md hover:bg-accent"
-                >
+                <button onClick={addPanel} className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors duration-150 px-2 py-0.5 rounded-md hover:bg-accent">
                     <Plus className="h-3 w-3" /> Add Panel
                 </button>
             </div>
 
-            {/* Resizable panel layout */}
-            <div className="flex-1 overflow-hidden">
-                <ResizablePanelGroup orientation="horizontal" className="h-full">
-                    {panels.flatMap((panel, i) => {
-                        const elements = [];
-                        if (i > 0) {
-                            elements.push(
-                                <PanelResizeHandle
-                                    key={`handle-${panel.id}`}
-                                    className="w-1.5 bg-transparent hover:bg-primary/20 active:bg-primary/30 transition-colors duration-150 flex items-center justify-center group"
-                                >
-                                    <GripVertical className="h-4 w-4 text-muted-foreground/30 group-hover:text-primary/50 transition-colors" />
-                                </PanelResizeHandle>
-                            );
-                        }
-                        elements.push(
-                            <ResizablePanel
-                                key={panel.id}
-                                id={String(panel.id)}
-                                minSize={15}
-                            >
-                                <SingleDataPanel
-                                    panel={panel}
-                                    canClose={panels.length > 1}
-                                    onClose={() => removePanel(panel.id)}
-                                    onUpdate={(updates) => updatePanel(panel.id, updates)}
+            {/* Row-based panel grid */}
+            <div className="flex-1 overflow-auto p-2 space-y-2">
+                {rows.map((row, ri) => {
+                    const rowPanels = row.panelIds.map(pid => panels.find(p => p.id === pid)).filter(Boolean) as DataPanelState[];
+                    if (rowPanels.length === 0) return null;
+                    return (
+                        <div key={row.id}>
+                            {ri === 0 && dragPanelId !== null && (
+                                <div
+                                    className={cn('h-3 rounded border-2 border-dashed mb-1 transition-colors', dropTarget === `new-above-${row.id}` ? 'border-primary bg-primary/10' : 'border-transparent')}
+                                    onDragOver={e => { e.preventDefault(); setDropTarget(`new-above-${row.id}`); }}
+                                    onDragLeave={() => setDropTarget(null)}
+                                    onDrop={e => { e.preventDefault(); handleDropNewRow(null); }}
                                 />
-                            </ResizablePanel>
-                        );
-                        return elements;
-                    })}
-                </ResizablePanelGroup>
+                            )}
+                            <div
+                                className={cn('rounded-lg border overflow-hidden transition-colors', dropTarget === `row-${row.id}` ? 'border-primary bg-primary/5' : 'border-border/30')}
+                                onDragOver={e => { e.preventDefault(); if (dragPanelId !== null && !row.panelIds.includes(dragPanelId)) setDropTarget(`row-${row.id}`); }}
+                                onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(null); }}
+                                onDrop={e => { e.preventDefault(); handleDropOnRow(row.id); }}
+                                style={{ minHeight: 220 }}
+                            >
+                                <ResizablePanelGroup orientation="horizontal" className="h-full" style={{ minHeight: 220 }}>
+                                    {rowPanels.flatMap((panel, i) => {
+                                        const els: React.ReactNode[] = [];
+                                        if (i > 0) els.push(
+                                            <PanelResizeHandle key={`h-${row.id}-${panel.id}`} className="w-1.5 bg-transparent hover:bg-primary/20 active:bg-primary/30 transition-colors flex items-center justify-center group">
+                                                <GripVertical className="h-4 w-4 text-muted-foreground/30 group-hover:text-primary/50 transition-colors" />
+                                            </PanelResizeHandle>
+                                        );
+                                        els.push(
+                                            <ResizablePanel key={panel.id} id={`p-${row.id}-${panel.id}`} minSize={20}>
+                                                <SingleDataPanel
+                                                    panel={panel} canClose={panels.length > 1}
+                                                    onClose={() => removePanel(panel.id)}
+                                                    onUpdate={updates => updatePanel(panel.id, updates)}
+                                                    onDragStart={() => handleDragStart(panel.id)}
+                                                    onDragEnd={handleDragEnd}
+                                                    isDragging={dragPanelId === panel.id}
+                                                />
+                                            </ResizablePanel>
+                                        );
+                                        return els;
+                                    })}
+                                </ResizablePanelGroup>
+                            </div>
+                            {dragPanelId !== null && (
+                                <div
+                                    className={cn('h-3 rounded border-2 border-dashed mt-1 transition-colors', dropTarget === `new-below-${row.id}` ? 'border-primary bg-primary/10' : 'border-transparent')}
+                                    onDragOver={e => { e.preventDefault(); setDropTarget(`new-below-${row.id}`); }}
+                                    onDragLeave={() => setDropTarget(null)}
+                                    onDrop={e => { e.preventDefault(); handleDropNewRow(row.id); }}
+                                />
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Bottom formula shelf */}
+            <div className="border-t border-border/50 bg-muted/5 shrink-0">
+                <div className="flex items-center gap-2 px-3 py-1.5">
+                    <Calculator className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Computations</span>
+                    <span className="text-[9px] text-muted-foreground/50">CQL</span>
+                </div>
+                <div className="px-3 pb-1.5">
+                    <div className="flex items-center gap-1.5">
+                        <input type="text" value={formulaInput} onChange={e => setFormulaInput(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && addFormula()}
+                            placeholder="SUM(sales.revenue) · AVG(customers.mrr) * COUNT(customers)"
+                            className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/40 outline-none border border-border/50 rounded-md px-2.5 py-1 font-mono focus:border-primary/50 transition-colors" />
+                        <button onClick={addFormula} disabled={!formulaInput.trim()}
+                            className="text-[10px] text-primary hover:text-primary/80 disabled:text-muted-foreground/30 transition-colors px-2 py-1 rounded-md border border-primary/20 hover:border-primary/40 disabled:border-border/30 shrink-0">
+                            Compute
+                        </button>
+                    </div>
+                </div>
+                {formulaCards.length > 0 && (
+                    <div className="px-3 pb-2 flex flex-wrap gap-1.5">
+                        {formulaCards.map(fc => (
+                            <div key={fc.id} className="inline-flex items-center gap-1.5 rounded-lg bg-accent/40 border border-border/30 px-2.5 py-1 text-xs font-mono group">
+                                <span className="text-muted-foreground text-[10px]">{fc.name}</span>
+                                <span className="text-foreground/60">=</span>
+                                <span className="text-primary font-medium">{fc.value}</span>
+                                <span className="text-muted-foreground/40 text-[9px]">({fc.expression})</span>
+                                <button onClick={() => removeFormula(fc.id)} className="text-muted-foreground/30 hover:text-destructive transition-colors ml-0.5 opacity-0 group-hover:opacity-100">
+                                    <XIcon className="h-3 w-3" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );
 }
 
-/* ─── Single Data Panel (dense header + calculations tray) ─── */
+/* ─── Single Data Panel (draggable card with dense header) ─── */
 
 const QUICK_FILTERS = [
     { id: 'above-avg', label: '> avg', icon: '↑' },
@@ -546,19 +684,22 @@ function SingleDataPanel({
     canClose,
     onClose,
     onUpdate,
+    onDragStart,
+    onDragEnd,
+    isDragging,
 }: {
     panel: DataPanelState;
     canClose: boolean;
     onClose: () => void;
     onUpdate: (updates: Partial<DataPanelState>) => void;
+    onDragStart: () => void;
+    onDragEnd: () => void;
+    isDragging: boolean;
 }) {
     const [filterInput, setFilterInput] = useState('');
     const [showFilters, setShowFilters] = useState(false);
-    const [showCalcs, setShowCalcs] = useState(false);
-    const [calcFn, setCalcFn] = useState('SUM');
 
     const dataset = SAMPLE_DATASETS.find(d => d.id === panel.datasetId) ?? SAMPLE_DATASETS[0];
-    const numericCols = dataset.headers.filter((_, i) => dataset.columnTypes[i] === 'numeric');
 
     const addQuickFilter = (qf: typeof QUICK_FILTERS[0]) => {
         if (!panel.selectedColumn) return;
@@ -587,80 +728,44 @@ function SingleDataPanel({
         onUpdate({ filters: panel.filters.filter(f => f.id !== id) });
     };
 
-    const addCalculation = (col?: string) => {
-        const targetCol = col ?? panel.selectedColumn ?? numericCols[0];
-        if (!targetCol) return;
-        const calc: Calculation = {
-            id: `calc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            fn: calcFn,
-            column: targetCol,
-            label: `${calcFn}(${targetCol})`,
-            value: evalCQL(calcFn, targetCol, panel.datasetId),
-        };
-        onUpdate({ calculations: [...panel.calculations, calc] });
-    };
-
-    const removeCalc = (id: string) => {
-        onUpdate({ calculations: panel.calculations.filter(c => c.id !== id) });
-    };
-
     const selectedStats = panel.selectedColumn && dataset.numericStats?.[panel.selectedColumn];
     const selectedCatStats = panel.selectedColumn && dataset.categoricalStats?.[panel.selectedColumn];
 
     return (
-        <div className="h-full flex flex-col overflow-hidden border-r border-border/20 last:border-r-0">
-            {/* ── Dense header row ── */}
-            <div className="flex items-center gap-1 px-2 py-1 border-b border-border/30 bg-muted/20 shrink-0 min-w-0">
-                {/* Dataset */}
+        <div className={cn(
+            'h-full flex flex-col overflow-hidden bg-card transition-opacity duration-200',
+            isDragging ? 'opacity-40' : 'opacity-100',
+        )}>
+            {/* ── Draggable header ── */}
+            <div
+                className="flex items-center gap-1.5 px-2.5 py-1.5 border-b border-border/30 bg-muted/20 shrink-0 min-w-0 cursor-grab active:cursor-grabbing"
+                draggable
+                onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
+                onDragEnd={onDragEnd}
+            >
+                <GripVertical className="h-3 w-3 text-muted-foreground/30 shrink-0" />
                 <select
                     value={panel.datasetId}
                     onChange={e => onUpdate({ datasetId: e.target.value, selectedColumn: null, filters: [], calculations: [] })}
-                    className="bg-transparent text-[10px] font-medium text-foreground outline-none cursor-pointer min-w-0 max-w-[90px] truncate"
+                    className="bg-transparent text-[11px] font-medium text-foreground outline-none cursor-pointer min-w-0 max-w-[110px] truncate"
                     title={dataset.name}
+                    onClick={e => e.stopPropagation()}
                 >
-                    {SAMPLE_DATASETS.map(ds => (
-                        <option key={ds.id} value={ds.id}>{ds.name}</option>
-                    ))}
+                    {SAMPLE_DATASETS.map(ds => (<option key={ds.id} value={ds.id}>{ds.name}</option>))}
                 </select>
-
-                {/* Stage pills — single-letter at narrow widths via CSS */}
-                <div className="flex items-center gap-px shrink-0">
+                <div className="flex items-center gap-0.5 shrink-0">
                     {STAGES.map(s => (
-                        <button
-                            key={s.id}
-                            onClick={() => onUpdate({ stage: s.id })}
-                            className={cn(
-                                'px-1 py-0.5 rounded text-[9px] transition-colors duration-150 shrink-0',
-                                panel.stage === s.id
-                                    ? 'bg-primary/10 text-primary font-medium'
-                                    : 'text-muted-foreground/60 hover:text-foreground'
-                            )}
-                            title={s.label}
-                        >
-                            {s.label[0]}
-                        </button>
+                        <button key={s.id} onClick={() => onUpdate({ stage: s.id })}
+                            className={cn('px-1.5 py-0.5 rounded text-[10px] transition-colors shrink-0',
+                                panel.stage === s.id ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground/60 hover:text-foreground'
+                            )} title={s.label}>{s.label}</button>
                     ))}
                 </div>
-
-                {/* Spacer */}
                 <div className="flex-1 min-w-0" />
-
-                {/* Rows count */}
-                <span className="text-[9px] text-muted-foreground/60 font-mono shrink-0">{dataset.rows.length}r</span>
-
-                {/* Action icons — always visible, never overflow */}
-                <button
-                    onClick={() => setShowCalcs(!showCalcs)}
-                    className={cn('p-0.5 rounded shrink-0 transition-colors', showCalcs || panel.calculations.length > 0 ? 'text-primary' : 'text-muted-foreground/40 hover:text-foreground')}
-                    title="Calculations"
-                >
-                    <Calculator className="h-3 w-3" />
-                </button>
-                <button
-                    onClick={() => setShowFilters(!showFilters)}
-                    className={cn('p-0.5 rounded shrink-0 transition-colors relative', showFilters || panel.filters.length > 0 ? 'text-primary' : 'text-muted-foreground/40 hover:text-foreground')}
-                    title="Filters"
-                >
+                <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">{dataset.rows.length} rows</span>
+                <button onClick={() => setShowFilters(!showFilters)}
+                    className={cn('p-0.5 rounded shrink-0 transition-colors', showFilters || panel.filters.length > 0 ? 'text-primary' : 'text-muted-foreground/40 hover:text-foreground')}
+                    title="Filters">
                     <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1 3h14M4 8h8M6 13h4" /></svg>
                 </button>
                 {canClose && (
@@ -670,101 +775,39 @@ function SingleDataPanel({
                 )}
             </div>
 
-            {/* ── Calculations tray ── */}
-            {showCalcs && (
-                <div className="px-2 py-1.5 border-b border-border/30 bg-muted/5 space-y-1 shrink-0">
-                    {/* Add calculation row */}
-                    <div className="flex items-center gap-1">
-                        <select
-                            value={calcFn}
-                            onChange={e => setCalcFn(e.target.value)}
-                            className="bg-transparent text-[10px] text-foreground outline-none border border-border/50 rounded px-1 py-0.5 cursor-pointer"
-                        >
-                            {CQL_FUNCTIONS.map(f => <option key={f} value={f}>{f}</option>)}
-                        </select>
-                        <span className="text-[10px] text-muted-foreground">(</span>
-                        <select
-                            value={panel.selectedColumn ?? numericCols[0] ?? ''}
-                            onChange={e => onUpdate({ selectedColumn: e.target.value })}
-                            className="bg-transparent text-[10px] text-foreground outline-none border border-border/50 rounded px-1 py-0.5 cursor-pointer min-w-0 max-w-[70px]"
-                        >
-                            {dataset.headers.map(h => <option key={h} value={h}>{h}</option>)}
-                        </select>
-                        <span className="text-[10px] text-muted-foreground">)</span>
-                        <button
-                            onClick={() => addCalculation()}
-                            className="text-[9px] text-primary hover:text-primary/80 transition-colors px-1.5 py-0.5 rounded border border-primary/20 hover:border-primary/40 shrink-0"
-                        >
-                            Compute
-                        </button>
-                    </div>
-                    {/* Pinned calculations */}
-                    {panel.calculations.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                            {panel.calculations.map(c => (
-                                <span key={c.id} className="inline-flex items-center gap-1 rounded-md bg-accent/50 border border-border/30 px-1.5 py-0.5 text-[9px] font-mono">
-                                    <span className="text-muted-foreground">{c.label}</span>
-                                    <span className="text-foreground font-medium">=</span>
-                                    <span className="text-primary font-medium">{c.value}</span>
-                                    <button onClick={() => removeCalc(c.id)} className="text-muted-foreground/40 hover:text-destructive transition-colors ml-0.5">
-                                        <XIcon className="h-2.5 w-2.5" />
-                                    </button>
-                                </span>
-                            ))}
-                        </div>
-                    )}
-                    {panel.calculations.length === 0 && (
-                        <p className="text-[9px] text-muted-foreground/50 italic">Pick a function and column, or type CQL in chat</p>
-                    )}
-                </div>
-            )}
-
             {/* ── Filter bar ── */}
             {showFilters && (
-                <div className="px-2 py-1 border-b border-border/30 space-y-1 shrink-0">
-                    <div className="flex flex-wrap gap-0.5">
+                <div className="px-2.5 py-1.5 border-b border-border/30 space-y-1 shrink-0">
+                    <div className="flex flex-wrap gap-1">
                         {QUICK_FILTERS.map(qf => (
-                            <button
-                                key={qf.id}
-                                onClick={() => addQuickFilter(qf)}
-                                disabled={!panel.selectedColumn}
-                                className={cn(
-                                    'inline-flex items-center gap-0.5 rounded border px-1 py-px text-[8px] transition-colors duration-150',
-                                    panel.selectedColumn
-                                        ? 'border-border text-muted-foreground hover:text-foreground hover:border-primary/30'
-                                        : 'border-border/30 text-muted-foreground/30 cursor-not-allowed'
-                                )}
-                            >
-                                <span>{qf.icon}</span>{qf.label}
+                            <button key={qf.id} onClick={() => addQuickFilter(qf)} disabled={!panel.selectedColumn}
+                                className={cn('inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[10px] transition-colors',
+                                    panel.selectedColumn ? 'border-border text-muted-foreground hover:text-foreground hover:border-primary/30' : 'border-border/30 text-muted-foreground/30 cursor-not-allowed'
+                                )}>
+                                <span>{qf.icon}</span> {qf.label}
                             </button>
                         ))}
                     </div>
                     <div className="flex items-center gap-1">
-                        <input
-                            type="text"
-                            value={filterInput}
-                            onChange={e => setFilterInput(e.target.value)}
+                        <input type="text" value={filterInput} onChange={e => setFilterInput(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && addExpressionFilter()}
                             placeholder="revenue > mean(revenue)"
-                            className="flex-1 min-w-0 bg-transparent text-[10px] text-foreground placeholder:text-muted-foreground/50 outline-none border border-border/50 rounded px-1.5 py-0.5 focus:border-primary/50"
-                        />
-                        <button
-                            onClick={addExpressionFilter}
-                            disabled={!filterInput.trim()}
-                            className="text-[9px] text-primary hover:text-primary/80 disabled:text-muted-foreground/30 transition-colors px-1 shrink-0"
-                        >
-                            Go
-                        </button>
+                            className="flex-1 min-w-0 bg-transparent text-[11px] text-foreground placeholder:text-muted-foreground/50 outline-none border border-border/50 rounded px-2 py-0.5 focus:border-primary/50" />
+                        <button onClick={addExpressionFilter} disabled={!filterInput.trim()}
+                            className="text-[10px] text-primary hover:text-primary/80 disabled:text-muted-foreground/30 transition-colors px-1.5 shrink-0">Apply</button>
                     </div>
                     {panel.filters.length > 0 && (
-                        <div className="flex flex-wrap gap-0.5">
+                        <div className="flex flex-wrap gap-1 pt-0.5">
                             {panel.filters.map(f => (
-                                <span key={f.id} className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 text-primary px-1.5 py-px text-[8px]">
+                                <span key={f.id} className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px]">
                                     {f.label}
                                     <button onClick={() => removeFilter(f.id)} className="hover:text-destructive transition-colors">×</button>
                                 </span>
                             ))}
                         </div>
+                    )}
+                    {!panel.selectedColumn && (
+                        <p className="text-[9px] text-muted-foreground/60 italic">Click a column header to enable quick filters</p>
                     )}
                 </div>
             )}
