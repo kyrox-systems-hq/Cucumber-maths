@@ -995,8 +995,8 @@ function SingleDataPanel({
                                                 onChange={setNewColExpr}
                                                 placeholder="Expression"
                                                 className="w-full"
-                                                editorClassName="text-[11px]"
-                                                minHeight="28px"
+                                                editorClassName="text-xs"
+                                                minHeight="32px"
                                                 popupDirection="down"
                                                 cqlOnly
                                                 onKeyDown={e => {
