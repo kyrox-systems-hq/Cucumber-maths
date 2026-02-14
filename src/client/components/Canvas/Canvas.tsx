@@ -990,13 +990,13 @@ function SingleDataPanel({
                                         </div>
 
                                         {/* Row 2: Expression (RichCommandInput like Computations tab) */}
-                                        <div className="border border-border/50 rounded focus-within:border-primary/50 transition-colors">
+                                        <div className="border border-border/50 rounded-md px-2.5 py-1.5 focus-within:border-primary/50 transition-all duration-200">
                                             <RichCommandInput
                                                 onChange={setNewColExpr}
                                                 placeholder="Expression"
-                                                className="w-full"
+                                                className="flex-1 min-w-0"
                                                 editorClassName="text-xs"
-                                                minHeight="32px"
+                                                minHeight="20px"
                                                 popupDirection="down"
                                                 cqlOnly
                                                 onKeyDown={e => {
