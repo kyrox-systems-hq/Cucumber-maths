@@ -193,25 +193,24 @@ export function DataPanel({ className, scratchpadActive, selectedTableId, onSele
                                     </div>
                                 </div>
 
-                                {/* Option 2: Online sources */}
+                                {/* Option 2: Online sources — categories */}
                                 <div className="px-3 py-2">
-                                    <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/60 px-0.5">Online Sources</span>
+                                    <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/60 px-0.5">Connect Online</span>
                                     <div className="mt-1.5 space-y-0.5">
                                         {[
-                                            { id: 'postgres', icon: Database, label: 'PostgreSQL', desc: 'Connect to database' },
-                                            { id: 'mysql', icon: Database, label: 'MySQL', desc: 'Connect to database' },
-                                            { id: 'rest-api', icon: Globe, label: 'REST API', desc: 'Fetch from endpoint' },
-                                            { id: 'graphql', icon: Globe, label: 'GraphQL', desc: 'Query API' },
-                                            { id: 'plugin', icon: Plug, label: 'Plugin', desc: 'Custom data connector' },
-                                        ].map(src => (
-                                            <button key={src.id}
-                                                className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-accent transition-colors duration-150 text-left group"
+                                            { id: 'databases', icon: Database, label: 'Databases', desc: 'PostgreSQL, MySQL, SQLite, MongoDB…' },
+                                            { id: 'apis', icon: Globe, label: 'APIs', desc: 'REST, GraphQL, webhooks…' },
+                                            { id: 'plugins', icon: Plug, label: 'Plugin Connectors', desc: 'Community & custom integrations' },
+                                        ].map(cat => (
+                                            <button key={cat.id}
+                                                className="w-full flex items-center gap-2.5 px-2 py-2 rounded-md hover:bg-accent transition-colors duration-150 text-left group"
                                             >
-                                                <src.icon className="h-3.5 w-3.5 text-muted-foreground/60 group-hover:text-primary shrink-0 transition-colors" />
+                                                <cat.icon className="h-3.5 w-3.5 text-muted-foreground/60 group-hover:text-primary shrink-0 transition-colors" />
                                                 <div className="min-w-0 flex-1">
-                                                    <p className="text-[11px] font-medium">{src.label}</p>
-                                                    <p className="text-[9px] text-muted-foreground/50">{src.desc}</p>
+                                                    <p className="text-[11px] font-medium">{cat.label}</p>
+                                                    <p className="text-[9px] text-muted-foreground/50">{cat.desc}</p>
                                                 </div>
+                                                <ChevronRight className="h-3 w-3 text-muted-foreground/30 group-hover:text-muted-foreground shrink-0 transition-colors" />
                                             </button>
                                         ))}
                                     </div>
