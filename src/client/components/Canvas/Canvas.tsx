@@ -3,6 +3,7 @@ import { cn } from '@client/lib/utils';
 import { useState } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@client/components/ui/tabs';
 import { Panel as ResizablePanel, Group as ResizablePanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
+import { RichCommandInput } from '@client/components/ui/rich-command-input';
 
 /* ─── types & mock data ─── */
 
@@ -1188,17 +1189,17 @@ function ScratchpadTab() {
 
             {/* Unified editor */}
             <div className="flex-1 overflow-y-auto p-4">
-                <textarea
-                    value={activePad.content}
-                    onChange={e => updateContent(e.target.value)}
+                <RichCommandInput
+                    onChange={updateContent}
+                    placeholder="Write freely — type / for CQL commands, @ for data references…"
+                    editorClassName="text-sm"
+                    minHeight="300px"
                     onKeyDown={e => {
                         if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
                             e.preventDefault();
                             // TODO: send to Preview
                         }
                     }}
-                    placeholder="Write freely — mix prose with CQL using / and @ markers…"
-                    className="w-full h-full min-h-[300px] bg-transparent text-sm text-foreground placeholder:text-muted-foreground/30 outline-none resize-none leading-relaxed"
                 />
             </div>
 

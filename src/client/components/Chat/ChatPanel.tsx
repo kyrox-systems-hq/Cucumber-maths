@@ -1,7 +1,8 @@
 import { MessageSquare, Send, Code2, Sparkles, Clock, BookOpen, Maximize2, Minimize2, FileEdit } from 'lucide-react';
 import { cn } from '@client/lib/utils';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@client/components/ui/tabs';
+import { RichCommandInput } from '@client/components/ui/rich-command-input';
 
 /* ─── types & mock data ─── */
 
@@ -77,6 +78,7 @@ interface ChatPanelProps {
 export function ChatPanel({ className, scratchpadActive }: ChatPanelProps) {
     const [input, setInput] = useState('');
     const [expanded, setExpanded] = useState(false);
+    const editorRef = useRef<HTMLDivElement>(null);
 
     return (
         <div className={cn('flex flex-col h-full bg-card overflow-hidden', className)}>
@@ -177,35 +179,27 @@ export function ChatPanel({ className, scratchpadActive }: ChatPanelProps) {
                                 'flex gap-2 rounded-[10px] border border-border bg-background px-3 py-2 focus-within:border-primary/50 transition-all duration-200',
                                 expanded ? 'flex-col' : 'items-center',
                             )}>
-                                {expanded ? (
-                                    <textarea
-                                        value={input}
-                                        onChange={e => setInput(e.target.value)}
-                                        onKeyDown={e => {
-                                            if (e.key === 'Escape') { setExpanded(false); }
-                                            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && input.trim()) {
-                                                e.preventDefault(); setInput('');
-                                            }
-                                        }}
-                                        placeholder="Write a complex query or multi-paragraph prompt…"
-                                        className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none resize-none font-mono leading-relaxed"
-                                        style={{ minHeight: '120px', maxHeight: '40vh' }}
-                                        autoFocus
-                                    />
-                                ) : (
-                                    <input
-                                        type="text"
-                                        value={input}
-                                        onChange={e => setInput(e.target.value)}
-                                        onKeyDown={e => {
-                                            if (e.key === 'Enter' && input.trim()) {
-                                                e.preventDefault(); setInput('');
-                                            }
-                                        }}
-                                        placeholder="Ask anything or type CQL… e.g. SUM(revenue)"
-                                        className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none"
-                                    />
-                                )}
+                                <RichCommandInput
+                                    editorRef={editorRef}
+                                    onChange={setInput}
+                                    placeholder={expanded ? 'Write a complex query or multi-paragraph prompt… type / for CQL' : 'Ask anything… type / for CQL, @ for data'}
+                                    editorClassName="flex-1 text-xs"
+                                    minHeight={expanded ? '120px' : '20px'}
+                                    autoFocus={expanded}
+                                    onKeyDown={e => {
+                                        if (expanded && e.key === 'Escape') { setExpanded(false); }
+                                        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && input.trim()) {
+                                            e.preventDefault();
+                                            if (editorRef.current) editorRef.current.innerHTML = '';
+                                            setInput('');
+                                        }
+                                        if (!expanded && e.key === 'Enter' && input.trim()) {
+                                            e.preventDefault();
+                                            if (editorRef.current) editorRef.current.innerHTML = '';
+                                            setInput('');
+                                        }
+                                    }}
+                                />
                                 <div className="flex items-center gap-1 shrink-0 self-end">
                                     <button
                                         onClick={() => setExpanded(!expanded)}

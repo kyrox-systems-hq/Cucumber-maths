@@ -238,3 +238,33 @@ body {
     outline: 2px solid var(--primary);
     outline-offset: 2px;
 }
+
+/* ── Rich Command Input — CQL tokens ─── */
+.cql-token {
+    display: inline;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.8em;
+    font-weight: 600;
+    color: hsl(var(--primary));
+    background: hsl(var(--primary) / 0.1);
+    border: 1px solid hsl(var(--primary) / 0.2);
+    border-radius: 4px;
+    padding: 1px 5px;
+    margin: 0 1px;
+    white-space: nowrap;
+    user-select: all;
+    cursor: default;
+}
+
+.cql-token[data-cql^="ref-"] {
+    color: hsl(187 80% 55%);
+    background: hsl(187 80% 55% / 0.1);
+    border-color: hsl(187 80% 55% / 0.2);
+}
+
+/* Placeholder for empty contenteditable */
+.rich-command-input:empty::before {
+    content: attr(data-placeholder);
+    color: hsl(var(--muted-foreground) / 0.3);
+    pointer-events: none;
+}
