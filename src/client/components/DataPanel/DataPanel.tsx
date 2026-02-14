@@ -104,7 +104,7 @@ interface DataPanelProps {
     className?: string;
     scratchpadActive?: boolean;
     selectedTableId?: string | null;
-    onSelectTable?: (tableId: string) => void;
+    onSelectTable?: (tableId: string | null) => void;
 }
 
 export function DataPanel({ className, scratchpadActive, selectedTableId, onSelectTable }: DataPanelProps) {
@@ -181,7 +181,7 @@ export function DataPanel({ className, scratchpadActive, selectedTableId, onSele
                                                     {ds.tables.length} {ds.tables.length === 1 ? 'table' : 'tables'}
                                                     {(() => {
                                                         const tIds = new Set(ds.tables.map(t => t.id));
-                                                        const count = INITIAL_GROUPS.filter(g => g.cards.some(c => tIds.has(c.dataset))).length;
+                                                        const count = INITIAL_GROUPS.flatMap(g => g.cards).filter(c => tIds.has(c.dataset)).length;
                                                         return count > 0 ? ` · ${count} computation${count === 1 ? '' : 's'}` : '';
                                                     })()}
                                                     {' · '}{ds.size}
@@ -206,7 +206,7 @@ export function DataPanel({ className, scratchpadActive, selectedTableId, onSele
                                                             {ds.tables.map(tbl => (
                                                                 <button
                                                                     key={tbl.id}
-                                                                    onClick={() => onSelectTable?.(tbl.id)}
+                                                                    onClick={() => onSelectTable?.(selectedTableId === tbl.id ? null : tbl.id)}
                                                                     className={cn(
                                                                         'w-full flex items-center gap-2.5 px-2 py-2 rounded-md text-left transition-colors duration-150',
                                                                         selectedTableId === tbl.id
