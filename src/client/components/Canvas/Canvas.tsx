@@ -436,6 +436,14 @@ const SAMPLE_DATASETS: DatasetDef[] = [
     },
 ];
 
+/* Map table ID → parent data source filename (mirrors DataPanel's DATA_SOURCES) */
+const TABLE_SOURCE_MAP: Record<string, string> = {
+    'sales': 'sales_q4.csv',
+    'customers': 'customers.parquet',
+    'inventory': 'inventory.xlsx',
+    'inventory-reorder': 'inventory.xlsx',
+};
+
 const STAGES = [
     { id: 'raw' as const, label: 'Raw' },
     { id: 'cleaned' as const, label: 'Cleaned' },
@@ -588,12 +596,12 @@ function DataInspectionTab({ selectedTableId }: { selectedTableId: string | null
                 <span className="text-[10px] text-muted-foreground font-mono">
                     {panels.length} {panels.length === 1 ? 'panel' : 'panels'} · {rows.length} {rows.length === 1 ? 'row' : 'rows'}
                 </span>
+                {addError && (
+                    <span className="text-[10px] text-destructive ml-1 transition-opacity">{addError}</span>
+                )}
                 <button onClick={addPanel} className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors duration-150 px-2 py-0.5 rounded-md hover:bg-accent">
                     <Plus className="h-3 w-3" /> Add Panel
                 </button>
-                {addError && (
-                    <span className="text-[10px] text-destructive animate-pulse">{addError}</span>
-                )}
             </div>
 
             {/* Row-based panel grid */}
@@ -735,10 +743,14 @@ function SingleDataPanel({
                 onDragEnd={onDragEnd}
             >
                 <GripVertical className="h-3 w-3 text-muted-foreground/30 shrink-0" />
-                <span className="text-[11px] font-medium text-foreground truncate" title={dataset.name}>
+                <span className="text-[13px] font-medium text-foreground truncate" title={dataset.name}>
                     {dataset.name}
                 </span>
-                <div className="flex items-center gap-0.5 shrink-0">
+                <span className="text-[10px] text-muted-foreground/50 shrink-0">›</span>
+                <span className="text-[10px] text-muted-foreground/60 truncate max-w-[100px]">
+                    {TABLE_SOURCE_MAP[panel.datasetId] ?? ''}
+                </span>
+                <div className="flex items-center gap-0.5 shrink-0 ml-2">
                     {STAGES.map(s => (
                         <button key={s.id} onClick={() => onUpdate({ stage: s.id })}
                             className={cn('px-1.5 py-0.5 rounded text-[10px] transition-colors shrink-0',
@@ -761,41 +773,43 @@ function SingleDataPanel({
             </div>
 
             {/* ── Filter bar ── */}
-            {showFilters && (
-                <div className="px-2.5 py-1.5 border-b border-border/30 space-y-1 shrink-0">
-                    <div className="flex flex-wrap gap-1">
-                        {QUICK_FILTERS.map(qf => (
-                            <button key={qf.id} onClick={() => addQuickFilter(qf)} disabled={!panel.selectedColumn}
-                                className={cn('inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[10px] transition-colors',
-                                    panel.selectedColumn ? 'border-border text-muted-foreground hover:text-foreground hover:border-primary/30' : 'border-border/30 text-muted-foreground/30 cursor-not-allowed'
-                                )}>
-                                <span>{qf.icon}</span> {qf.label}
-                            </button>
-                        ))}
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <input type="text" value={filterInput} onChange={e => setFilterInput(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && addExpressionFilter()}
-                            placeholder="revenue > mean(revenue)"
-                            className="flex-1 min-w-0 bg-transparent text-[11px] text-foreground placeholder:text-muted-foreground/50 outline-none border border-border/50 rounded px-2 py-0.5 focus:border-primary/50" />
-                        <button onClick={addExpressionFilter} disabled={!filterInput.trim()}
-                            className="text-[10px] text-primary hover:text-primary/80 disabled:text-muted-foreground/30 transition-colors px-1.5 shrink-0">Apply</button>
-                    </div>
-                    {panel.filters.length > 0 && (
-                        <div className="flex flex-wrap gap-1 pt-0.5">
-                            {panel.filters.map(f => (
-                                <span key={f.id} className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px]">
-                                    {f.label}
-                                    <button onClick={() => removeFilter(f.id)} className="hover:text-destructive transition-colors">×</button>
-                                </span>
+            {
+                showFilters && (
+                    <div className="px-2.5 py-1.5 border-b border-border/30 space-y-1 shrink-0">
+                        <div className="flex flex-wrap gap-1">
+                            {QUICK_FILTERS.map(qf => (
+                                <button key={qf.id} onClick={() => addQuickFilter(qf)} disabled={!panel.selectedColumn}
+                                    className={cn('inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[10px] transition-colors',
+                                        panel.selectedColumn ? 'border-border text-muted-foreground hover:text-foreground hover:border-primary/30' : 'border-border/30 text-muted-foreground/30 cursor-not-allowed'
+                                    )}>
+                                    <span>{qf.icon}</span> {qf.label}
+                                </button>
                             ))}
                         </div>
-                    )}
-                    {!panel.selectedColumn && (
-                        <p className="text-[9px] text-muted-foreground/60 italic">Click a column header to enable quick filters</p>
-                    )}
-                </div>
-            )}
+                        <div className="flex items-center gap-1">
+                            <input type="text" value={filterInput} onChange={e => setFilterInput(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && addExpressionFilter()}
+                                placeholder="revenue > mean(revenue)"
+                                className="flex-1 min-w-0 bg-transparent text-[11px] text-foreground placeholder:text-muted-foreground/50 outline-none border border-border/50 rounded px-2 py-0.5 focus:border-primary/50" />
+                            <button onClick={addExpressionFilter} disabled={!filterInput.trim()}
+                                className="text-[10px] text-primary hover:text-primary/80 disabled:text-muted-foreground/30 transition-colors px-1.5 shrink-0">Apply</button>
+                        </div>
+                        {panel.filters.length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-0.5">
+                                {panel.filters.map(f => (
+                                    <span key={f.id} className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px]">
+                                        {f.label}
+                                        <button onClick={() => removeFilter(f.id)} className="hover:text-destructive transition-colors">×</button>
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+                        {!panel.selectedColumn && (
+                            <p className="text-[9px] text-muted-foreground/60 italic">Click a column header to enable quick filters</p>
+                        )}
+                    </div>
+                )
+            }
 
             {/* ── Data table ── */}
             <div className="flex-1 overflow-auto">
@@ -865,7 +879,7 @@ function SingleDataPanel({
                     <p className="text-[9px] text-muted-foreground/40 italic">Select column for stats</p>
                 )}
             </div>
-        </div>
+        </div >
     );
 }
 

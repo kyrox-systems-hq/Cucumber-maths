@@ -156,7 +156,7 @@ export function DataPanel({ className, scratchpadActive, selectedTableId, onSele
                         <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
                             Datasets
                         </span>
-                        <div className="mt-1.5 space-y-0.5">
+                        <div className="mt-1.5 space-y-1">
                             {DATA_SOURCES.map(ds => {
                                 const SourceIcon = SOURCE_ICON[ds.type];
                                 const isExpanded = expandedSources.has(ds.id);
@@ -169,16 +169,22 @@ export function DataPanel({ className, scratchpadActive, selectedTableId, onSele
                                                 next.has(ds.id) ? next.delete(ds.id) : next.add(ds.id);
                                                 return next;
                                             })}
-                                            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left hover:bg-accent transition-colors duration-150 group"
+                                            className="w-full flex items-center gap-2.5 px-2 py-2 rounded-md text-left hover:bg-accent transition-colors duration-150 group"
                                         >
                                             {isExpanded
-                                                ? <ChevronDown className="h-3 w-3 text-muted-foreground/50 shrink-0" />
-                                                : <ChevronRight className="h-3 w-3 text-muted-foreground/50 shrink-0" />}
-                                            <SourceIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                                ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
+                                                : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />}
+                                            <SourceIcon className="h-4 w-4 text-muted-foreground shrink-0" />
                                             <div className="min-w-0 flex-1">
-                                                <p className="text-xs font-medium truncate">{ds.name}</p>
+                                                <p className="text-[13px] font-medium truncate">{ds.name}</p>
                                                 <p className="text-[10px] text-muted-foreground font-mono">
-                                                    {ds.tables.length} {ds.tables.length === 1 ? 'table' : 'tables'} · {ds.size}
+                                                    {ds.tables.length} {ds.tables.length === 1 ? 'table' : 'tables'}
+                                                    {(() => {
+                                                        const tIds = new Set(ds.tables.map(t => t.id));
+                                                        const count = INITIAL_GROUPS.filter(g => g.cards.some(c => tIds.has(c.dataset))).length;
+                                                        return count > 0 ? ` · ${count} computation${count === 1 ? '' : 's'}` : '';
+                                                    })()}
+                                                    {' · '}{ds.size}
                                                 </p>
                                             </div>
                                         </button>
@@ -202,15 +208,15 @@ export function DataPanel({ className, scratchpadActive, selectedTableId, onSele
                                                                     key={tbl.id}
                                                                     onClick={() => onSelectTable?.(tbl.id)}
                                                                     className={cn(
-                                                                        'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors duration-150',
+                                                                        'w-full flex items-center gap-2.5 px-2 py-2 rounded-md text-left transition-colors duration-150',
                                                                         selectedTableId === tbl.id
                                                                             ? 'bg-primary/10 border border-primary/30 text-primary'
                                                                             : 'hover:bg-accent',
                                                                     )}
                                                                 >
-                                                                    <Table2 className={cn('h-3 w-3 shrink-0', selectedTableId === tbl.id ? 'text-primary' : 'text-muted-foreground/60')} />
+                                                                    <Table2 className={cn('h-3.5 w-3.5 shrink-0', selectedTableId === tbl.id ? 'text-primary' : 'text-muted-foreground/60')} />
                                                                     <div className="min-w-0 flex-1">
-                                                                        <p className={cn('text-xs truncate', selectedTableId === tbl.id ? 'font-semibold' : 'font-medium')}>{tbl.name}</p>
+                                                                        <p className={cn('text-[13px] truncate', selectedTableId === tbl.id ? 'font-semibold' : 'font-medium')}>{tbl.name}</p>
                                                                         <p className="text-[10px] text-muted-foreground font-mono">
                                                                             {tbl.rows} rows · {tbl.cols} cols
                                                                         </p>
