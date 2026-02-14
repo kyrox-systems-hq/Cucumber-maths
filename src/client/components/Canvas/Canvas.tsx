@@ -962,7 +962,7 @@ function SingleDataPanel({
                                     <Plus className="h-3.5 w-3.5" />
                                 </button>
                                 {showAddColumn && (
-                                    <div className="fixed z-50 w-72 rounded-md border border-border bg-popover shadow-lg p-2.5 space-y-2"
+                                    <div className="fixed z-50 w-64 rounded-md border border-border bg-popover shadow-lg p-2.5 space-y-2"
                                         onClick={e => e.stopPropagation()}
                                         style={{ top: 'auto', bottom: 'auto' }}
                                         ref={el => {
@@ -971,7 +971,7 @@ function SingleDataPanel({
                                             if (!btn) return;
                                             const rect = btn.getBoundingClientRect();
                                             const spaceBelow = window.innerHeight - rect.bottom;
-                                            if (spaceBelow < 320) {
+                                            if (spaceBelow < 280) {
                                                 el.style.bottom = `${window.innerHeight - rect.top + 4}px`;
                                                 el.style.top = 'auto';
                                             } else {
@@ -981,57 +981,23 @@ function SingleDataPanel({
                                             el.style.right = `${window.innerWidth - rect.right}px`;
                                         }}
                                     >
-                                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">New Computed Column</p>
-
-                                        {/* DAX-style: column_name = expression */}
+                                        {/* Row 1: Name = */}
                                         <div className="flex items-center gap-1.5">
                                             <input value={newColName} onChange={e => setNewColName(e.target.value)}
                                                 placeholder="Name" autoFocus
-                                                className="w-20 shrink-0 bg-transparent border border-border/50 rounded px-2 py-1 text-[11px] outline-none focus:border-primary/50 placeholder:text-muted-foreground/40" />
+                                                className="w-24 shrink-0 bg-transparent border border-border/50 rounded px-2 py-1 text-[11px] outline-none focus:border-primary/50 placeholder:text-muted-foreground/40" />
                                             <span className="text-[13px] font-mono text-muted-foreground/60 shrink-0">=</span>
-                                            <input value={newColExpr} onChange={e => setNewColExpr(e.target.value)}
-                                                onKeyDown={e => { if (e.key === 'Enter') addComputedColumn(); if (e.key === 'Escape') setShowAddColumn(false); }}
-                                                placeholder="Expression"
-                                                className="flex-1 min-w-0 bg-transparent border border-border/50 rounded px-2 py-1 text-[11px] font-mono outline-none focus:border-primary/50 placeholder:text-muted-foreground/40" />
                                         </div>
 
-                                        {/* Column chips */}
-                                        <div>
-                                            <label className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Columns</label>
-                                            <div className="flex flex-wrap gap-1 mt-0.5">
-                                                {dataset.headers.map(h => (
-                                                    <button key={h} onClick={() => setNewColExpr(prev => prev ? `${prev} ${h}` : h)}
-                                                        className="text-[9px] text-muted-foreground hover:text-primary border border-border/30 hover:border-primary/30 rounded px-1.5 py-0.5 transition-colors font-mono">
-                                                        {h}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
+                                        {/* Row 2: Expression (auto-expanding textarea) */}
+                                        <textarea value={newColExpr} onChange={e => setNewColExpr(e.target.value)}
+                                            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addComputedColumn(); } if (e.key === 'Escape') setShowAddColumn(false); }}
+                                            onInput={e => { const t = e.currentTarget; t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }}
+                                            placeholder="Expression"
+                                            rows={1}
+                                            className="w-full bg-transparent border border-border/50 rounded px-2 py-1.5 text-[11px] font-mono outline-none focus:border-primary/50 placeholder:text-muted-foreground/40 resize-none overflow-hidden leading-relaxed" />
 
-                                        {/* Operators */}
-                                        <div className="flex items-center gap-1">
-                                            {['+', '−', '×', '÷', '(', ')'].map(op => (
-                                                <button key={op} onClick={() => setNewColExpr(prev => `${prev} ${op === '×' ? '*' : op === '÷' ? '/' : op === '−' ? '-' : op}`)}
-                                                    className="text-[10px] font-mono text-muted-foreground hover:text-primary border border-border/30 hover:border-primary/30 rounded w-6 h-6 flex items-center justify-center transition-colors">
-                                                    {op}
-                                                </button>
-                                            ))}
-                                        </div>
-
-                                        {/* CQL functions */}
-                                        <div>
-                                            <label className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Functions</label>
-                                            <div className="flex flex-wrap gap-1 mt-0.5">
-                                                {CQL_FUNCTIONS.slice(0, 8).map(fn => (
-                                                    <button key={fn} onClick={() => setNewColExpr(prev => `${prev}${prev ? ' ' : ''}${fn}(`)}
-                                                        className="text-[9px] text-muted-foreground/60 hover:text-primary border border-border/30 hover:border-primary/30 rounded px-1.5 py-0.5 transition-colors font-mono">
-                                                        {fn}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        <div className="flex justify-end gap-1 pt-0.5">
+                                        <div className="flex justify-end gap-1">
                                             <button onClick={() => setShowAddColumn(false)}
                                                 className="text-[10px] text-muted-foreground hover:text-foreground transition-colors px-2 py-0.5">Cancel</button>
                                             <button onClick={addComputedColumn}
