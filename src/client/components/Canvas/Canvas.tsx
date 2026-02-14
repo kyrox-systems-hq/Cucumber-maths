@@ -962,16 +962,56 @@ function SingleDataPanel({
                                     <Plus className="h-3.5 w-3.5" />
                                 </button>
                                 {showAddColumn && (
-                                    <div className="absolute right-0 top-8 z-20 w-52 rounded-md border border-border bg-popover shadow-lg p-2.5 space-y-1.5">
+                                    <div className="absolute right-0 top-8 z-20 w-64 rounded-md border border-border bg-popover shadow-lg p-2.5 space-y-2" onClick={e => e.stopPropagation()}>
                                         <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">New Computed Column</p>
                                         <input value={newColName} onChange={e => setNewColName(e.target.value)}
                                             placeholder="Column name" autoFocus
                                             className="w-full bg-transparent border border-border/50 rounded px-2 py-1 text-[11px] outline-none focus:border-primary/50 placeholder:text-muted-foreground/40" />
-                                        <input value={newColExpr} onChange={e => setNewColExpr(e.target.value)}
-                                            onKeyDown={e => { if (e.key === 'Enter') addComputedColumn(); if (e.key === 'Escape') setShowAddColumn(false); }}
-                                            placeholder="Expression (e.g. revenue / units)"
-                                            className="w-full bg-transparent border border-border/50 rounded px-2 py-1 text-[11px] font-mono outline-none focus:border-primary/50 placeholder:text-muted-foreground/40" />
-                                        <div className="flex justify-end gap-1">
+                                        <div>
+                                            <label className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Expression</label>
+                                            <input value={newColExpr} onChange={e => setNewColExpr(e.target.value)}
+                                                onKeyDown={e => { if (e.key === 'Enter') addComputedColumn(); if (e.key === 'Escape') setShowAddColumn(false); }}
+                                                placeholder="e.g. revenue / units"
+                                                className="w-full bg-transparent border border-border/50 rounded px-2 py-1 text-[11px] font-mono outline-none focus:border-primary/50 placeholder:text-muted-foreground/40 mt-0.5" />
+                                        </div>
+
+                                        {/* Column chips */}
+                                        <div>
+                                            <label className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Columns</label>
+                                            <div className="flex flex-wrap gap-1 mt-0.5">
+                                                {dataset.headers.map(h => (
+                                                    <button key={h} onClick={() => setNewColExpr(prev => prev ? `${prev} ${h}` : h)}
+                                                        className="text-[9px] text-muted-foreground hover:text-primary border border-border/30 hover:border-primary/30 rounded px-1.5 py-0.5 transition-colors font-mono">
+                                                        {h}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Operators */}
+                                        <div className="flex items-center gap-1">
+                                            {['+', '−', '×', '÷', '(', ')'].map(op => (
+                                                <button key={op} onClick={() => setNewColExpr(prev => `${prev} ${op === '×' ? '*' : op === '÷' ? '/' : op === '−' ? '-' : op}`)}
+                                                    className="text-[10px] font-mono text-muted-foreground hover:text-primary border border-border/30 hover:border-primary/30 rounded w-6 h-6 flex items-center justify-center transition-colors">
+                                                    {op}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        {/* CQL functions */}
+                                        <div>
+                                            <label className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Functions</label>
+                                            <div className="flex flex-wrap gap-1 mt-0.5">
+                                                {CQL_FUNCTIONS.slice(0, 8).map(fn => (
+                                                    <button key={fn} onClick={() => setNewColExpr(prev => `${prev}${prev ? ' ' : ''}${fn}(`)}
+                                                        className="text-[9px] text-muted-foreground/60 hover:text-primary border border-border/30 hover:border-primary/30 rounded px-1.5 py-0.5 transition-colors font-mono">
+                                                        {fn}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex justify-end gap-1 pt-0.5">
                                             <button onClick={() => setShowAddColumn(false)}
                                                 className="text-[10px] text-muted-foreground hover:text-foreground transition-colors px-2 py-0.5">Cancel</button>
                                             <button onClick={addComputedColumn}
