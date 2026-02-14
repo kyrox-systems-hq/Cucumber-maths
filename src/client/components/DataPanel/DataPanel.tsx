@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Upload, Database, BarChart3, Table2, Hash, Type, Calendar, Cpu, Boxes, Calculator, ChevronDown, ChevronRight, MoreVertical, Plus, Maximize2, Minimize2, FileEdit, FileSpreadsheet, FileText } from 'lucide-react';
+import { Upload, Database, BarChart3, Table2, Hash, Type, Calendar, Cpu, Boxes, Calculator, ChevronDown, ChevronRight, MoreVertical, Plus, Maximize2, Minimize2, FileEdit, FileSpreadsheet, FileText, Globe, Plug, X } from 'lucide-react';
 import { cn } from '@client/lib/utils';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@client/components/ui/tabs';
 import { RichCommandInput } from '@client/components/ui/rich-command-input';
@@ -111,6 +111,7 @@ interface DataPanelProps {
 export function DataPanel({ className, scratchpadActive, selectedTableId, onSelectTable }: DataPanelProps) {
     const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set(DATA_SOURCES.map(ds => ds.id)));
     const [loadedGroupIds, setLoadedGroupIds] = useState<Set<string>>(new Set());
+    const [showAddSource, setShowAddSource] = useState(false);
 
     const loadGroup = (groupId: string) => {
         setLoadedGroupIds(prev => new Set(prev).add(groupId));
@@ -157,14 +158,66 @@ export function DataPanel({ className, scratchpadActive, selectedTableId, onSele
 
                 {/* Sources tab — Datasets → Tables tree + Computations */}
                 <TabsContent value="sources" className="flex-1 mt-0 overflow-y-auto">
-                    {/* Upload zone */}
+                    {/* Add Data Source button + expandable panel */}
                     <div className="px-3 pt-3 pb-1">
-                        <div className="rounded-[10px] border border-dashed border-border hover:border-primary/40 transition-colors duration-150 p-4 flex flex-col items-center gap-2 cursor-pointer group">
-                            <Upload className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors duration-150" />
-                            <p className="text-xs text-muted-foreground text-center">
-                                Drop CSV, Parquet, or Excel
-                            </p>
-                        </div>
+                        {!showAddSource ? (
+                            <button
+                                onClick={() => setShowAddSource(true)}
+                                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[10px] border border-dashed border-border hover:border-primary/40 transition-colors duration-150 group cursor-pointer"
+                            >
+                                <Plus className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors duration-150" />
+                                <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors duration-150">
+                                    Add Data Source
+                                </span>
+                            </button>
+                        ) : (
+                            <div className="rounded-[10px] border border-border bg-muted/10 overflow-hidden">
+                                {/* Panel header */}
+                                <div className="flex items-center justify-between px-3 py-2 border-b border-border/50">
+                                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Add Data Source</span>
+                                    <button onClick={() => setShowAddSource(false)} className="p-0.5 rounded text-muted-foreground/50 hover:text-foreground transition-colors">
+                                        <X className="h-3 w-3" />
+                                    </button>
+                                </div>
+
+                                {/* Option 1: File upload */}
+                                <div className="px-3 py-2.5 border-b border-border/30">
+                                    <div className="rounded-lg border border-dashed border-border hover:border-primary/40 transition-colors duration-150 p-3 flex flex-col items-center gap-1.5 cursor-pointer group">
+                                        <Upload className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors duration-150" />
+                                        <p className="text-[11px] text-muted-foreground text-center">
+                                            Drop CSV, Parquet, or Excel
+                                        </p>
+                                        <p className="text-[9px] text-muted-foreground/40 text-center">
+                                            or click to browse files
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Option 2: Online sources */}
+                                <div className="px-3 py-2">
+                                    <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/60 px-0.5">Online Sources</span>
+                                    <div className="mt-1.5 space-y-0.5">
+                                        {[
+                                            { id: 'postgres', icon: Database, label: 'PostgreSQL', desc: 'Connect to database' },
+                                            { id: 'mysql', icon: Database, label: 'MySQL', desc: 'Connect to database' },
+                                            { id: 'rest-api', icon: Globe, label: 'REST API', desc: 'Fetch from endpoint' },
+                                            { id: 'graphql', icon: Globe, label: 'GraphQL', desc: 'Query API' },
+                                            { id: 'plugin', icon: Plug, label: 'Plugin', desc: 'Custom data connector' },
+                                        ].map(src => (
+                                            <button key={src.id}
+                                                className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-accent transition-colors duration-150 text-left group"
+                                            >
+                                                <src.icon className="h-3.5 w-3.5 text-muted-foreground/60 group-hover:text-primary shrink-0 transition-colors" />
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="text-[11px] font-medium">{src.label}</p>
+                                                    <p className="text-[9px] text-muted-foreground/50">{src.desc}</p>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Datasets tree */}
