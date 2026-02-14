@@ -182,50 +182,76 @@ export function DataPanel({ className, scratchpadActive, selectedTableId, onSele
                                                 </p>
                                             </div>
                                         </button>
-                                        {/* Child tables */}
-                                        {isExpanded && (
-                                            <div className="ml-5 mt-0.5 space-y-0.5">
-                                                {ds.tables.map(tbl => (
-                                                    <button
-                                                        key={tbl.id}
-                                                        onClick={() => onSelectTable?.(tbl.id)}
-                                                        className={cn(
-                                                            'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors duration-150',
-                                                            selectedTableId === tbl.id
-                                                                ? 'bg-primary/10 border border-primary/30 text-primary'
-                                                                : 'hover:bg-accent',
-                                                        )}
-                                                    >
-                                                        <Table2 className={cn('h-3 w-3 shrink-0', selectedTableId === tbl.id ? 'text-primary' : 'text-muted-foreground/60')} />
-                                                        <div className="min-w-0 flex-1">
-                                                            <p className={cn('text-xs truncate', selectedTableId === tbl.id ? 'font-semibold' : 'font-medium')}>{tbl.name}</p>
-                                                            <p className="text-[10px] text-muted-foreground font-mono">
-                                                                {tbl.rows} rows · {tbl.cols} cols
-                                                            </p>
+                                        {/* Nested: Tables + Computations inside expanded dataset */}
+                                        {isExpanded && (() => {
+                                            const tableIds = new Set(ds.tables.map(t => t.id));
+                                            const dsGroups = INITIAL_GROUPS.filter(g => g.cards.some(c => tableIds.has(c.dataset)));
+                                            const ungroupedCards = INITIAL_GROUPS
+                                                .flatMap(g => g.cards)
+                                                .filter(c => tableIds.has(c.dataset) && !dsGroups.some(g => g.cards.includes(c)));
+                                            return (
+                                                <div className="ml-5 mt-1 space-y-2">
+                                                    {/* Tables sub-heading */}
+                                                    <div>
+                                                        <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/60 px-2">
+                                                            Tables
+                                                        </span>
+                                                        <div className="mt-0.5 space-y-0.5">
+                                                            {ds.tables.map(tbl => (
+                                                                <button
+                                                                    key={tbl.id}
+                                                                    onClick={() => onSelectTable?.(tbl.id)}
+                                                                    className={cn(
+                                                                        'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors duration-150',
+                                                                        selectedTableId === tbl.id
+                                                                            ? 'bg-primary/10 border border-primary/30 text-primary'
+                                                                            : 'hover:bg-accent',
+                                                                    )}
+                                                                >
+                                                                    <Table2 className={cn('h-3 w-3 shrink-0', selectedTableId === tbl.id ? 'text-primary' : 'text-muted-foreground/60')} />
+                                                                    <div className="min-w-0 flex-1">
+                                                                        <p className={cn('text-xs truncate', selectedTableId === tbl.id ? 'font-semibold' : 'font-medium')}>{tbl.name}</p>
+                                                                        <p className="text-[10px] text-muted-foreground font-mono">
+                                                                            {tbl.rows} rows · {tbl.cols} cols
+                                                                        </p>
+                                                                    </div>
+                                                                </button>
+                                                            ))}
                                                         </div>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
+                                                    </div>
+
+                                                    {/* Computations sub-heading (only if there are any) */}
+                                                    {(dsGroups.length > 0 || ungroupedCards.length > 0) && (
+                                                        <div>
+                                                            <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/60 px-2">
+                                                                Computations
+                                                            </span>
+                                                            <div className="mt-0.5 space-y-0.5">
+                                                                {dsGroups.map(group => (
+                                                                    <div key={group.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent transition-colors duration-150 cursor-pointer">
+                                                                        <Calculator className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+                                                                        <span className="text-xs font-medium truncate flex-1">{group.name}</span>
+                                                                        <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">
+                                                                            {group.cards.filter(c => tableIds.has(c.dataset)).length}
+                                                                        </span>
+                                                                    </div>
+                                                                ))}
+                                                                {ungroupedCards.length > 0 && (
+                                                                    <div className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent transition-colors duration-150 cursor-pointer">
+                                                                        <Calculator className="h-3 w-3 text-muted-foreground/40 shrink-0" />
+                                                                        <span className="text-xs font-medium truncate flex-1 text-muted-foreground">Ungrouped</span>
+                                                                        <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">{ungroupedCards.length}</span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 );
                             })}
-                        </div>
-                    </div>
-
-                    {/* Computations summary (read-only) */}
-                    <div className="px-3 pt-4 pb-3">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
-                            Computations
-                        </span>
-                        <div className="mt-1.5 space-y-0.5">
-                            {INITIAL_GROUPS.map(group => (
-                                <div key={group.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent transition-colors duration-150 cursor-pointer">
-                                    <Calculator className="h-3 w-3 text-muted-foreground/60 shrink-0" />
-                                    <span className="text-xs font-medium truncate flex-1">{group.name}</span>
-                                    <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">{group.cards.length}</span>
-                                </div>
-                            ))}
                         </div>
                     </div>
                 </TabsContent>
