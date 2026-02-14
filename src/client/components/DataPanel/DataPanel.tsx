@@ -1,4 +1,5 @@
-import { Upload, Database, BarChart3, Hash, Type, Calendar, Cpu, Boxes } from 'lucide-react';
+import { useState } from 'react';
+import { Upload, Database, BarChart3, Hash, Type, Calendar, Cpu, Boxes, Calculator, ChevronDown, ChevronRight, MoreVertical, Plus } from 'lucide-react';
 import { cn } from '@client/lib/utils';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@client/components/ui/tabs';
 
@@ -29,6 +30,51 @@ const ENGINES = [
     { id: 'narrative', emoji: '📝', name: 'Narrative', tech: 'LLM', status: 'active' as const },
 ];
 
+/* ─── computation mock data ─── */
+
+interface ComputationCard {
+    id: string;
+    expression: string;
+    dataset: string;
+    value: string;
+    name: string;
+}
+
+interface ComputationGroup {
+    id: string;
+    name: string;
+    cards: ComputationCard[];
+    collapsed: boolean;
+}
+
+const INITIAL_GROUPS: ComputationGroup[] = [
+    {
+        id: 'g1', name: 'Revenue Metrics', collapsed: false,
+        cards: [
+            { id: 'c1', expression: 'SUM(sales.revenue)', dataset: 'sales', value: '$6,965', name: 'Total Revenue' },
+            { id: 'c2', expression: 'AVG(sales.revenue)', dataset: 'sales', value: '$1,741', name: 'Average Revenue' },
+            { id: 'c3', expression: 'MAX(sales.revenue)', dataset: 'sales', value: '$2,847', name: 'Peak Revenue' },
+        ],
+    },
+    {
+        id: 'g2', name: 'Customer Stats', collapsed: false,
+        cards: [
+            { id: 'c4', expression: 'COUNT(customers)', dataset: 'customers', value: '847', name: 'Total Customers' },
+            { id: 'c5', expression: 'AVG(customers.mrr)', dataset: 'customers', value: '$89.50', name: 'Average MRR' },
+        ],
+    },
+];
+
+const CQL_FUNCTIONS = ['SUM', 'COUNT', 'AVG', 'MIN', 'MAX', 'MEDIAN', 'STDEV', 'VARIANCE', 'PERCENTILE', 'DISTINCT'];
+
+function evalCQL(fn: string, column: string, datasetId: string): string {
+    const fakes: Record<string, Record<string, Record<string, string>>> = {
+        sales: { revenue: { SUM: '$6,965', AVG: '$1,741', MIN: '$124', MAX: '$2,847', MEDIAN: '$1,580', COUNT: '4', STDEV: '$892', VARIANCE: '$795k' } },
+        customers: { mrr: { SUM: '$75,767', AVG: '$89.50', MIN: '$9.99', MAX: '$499', COUNT: '847' } },
+    };
+    return fakes[datasetId]?.[column]?.[fn] ?? `${fn}(…)`;
+}
+
 /* ─── main component ─── */
 
 interface DataPanelProps {
@@ -55,6 +101,13 @@ export function DataPanel({ className }: DataPanelProps) {
                         >
                             <Cpu className="h-3 w-3 mr-1" />
                             Engines
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="computations"
+                            className="h-6 px-2 text-[11px] rounded-md data-[state=active]:bg-accent data-[state=active]:text-foreground text-muted-foreground"
+                        >
+                            <Calculator className="h-3 w-3 mr-1" />
+                            Computations
                         </TabsTrigger>
                     </TabsList>
                 </div>
@@ -158,7 +211,158 @@ export function DataPanel({ className }: DataPanelProps) {
                         </div>
                     </div>
                 </TabsContent>
+
+                {/* Computations tab */}
+                <ComputationsTab />
             </Tabs>
         </div>
+    );
+}
+
+/* ─── Computations Tab ─── */
+
+function ComputationsTab() {
+    const [groups, setGroups] = useState<ComputationGroup[]>(INITIAL_GROUPS);
+    const [cqlInput, setCqlInput] = useState('');
+    const [menuOpen, setMenuOpen] = useState<string | null>(null);
+    const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+    const toggleGroup = (groupId: string) => {
+        setGroups(prev => prev.map(g => g.id === groupId ? { ...g, collapsed: !g.collapsed } : g));
+    };
+
+    const addComputation = () => {
+        if (!cqlInput.trim()) return;
+        const expr = cqlInput.trim();
+        const match = expr.match(/^(\w+)\((\w+)\.(\w+)\)$/);
+        let value = '—';
+        let dataset = 'sales';
+        if (match) {
+            const [, fn, ds, col] = match;
+            dataset = ds;
+            value = evalCQL(fn.toUpperCase(), col, ds);
+        }
+        const card: ComputationCard = {
+            id: `cc-${Date.now()}`, expression: expr, dataset, value,
+            name: expr.replace(/[^a-zA-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(),
+        };
+        // Add to Unsaved group (create if missing)
+        setGroups(prev => {
+            const unsaved = prev.find(g => g.id === 'unsaved');
+            if (unsaved) {
+                return prev.map(g => g.id === 'unsaved' ? { ...g, cards: [...g.cards, card] } : g);
+            }
+            return [...prev, { id: 'unsaved', name: 'Unsaved', collapsed: false, cards: [card] }];
+        });
+        setCqlInput('');
+    };
+
+    const deleteCard = (groupId: string, cardId: string) => {
+        setGroups(prev => prev.map(g => g.id === groupId
+            ? { ...g, cards: g.cards.filter(c => c.id !== cardId) }
+            : g
+        ).filter(g => g.cards.length > 0 || g.id !== 'unsaved'));
+        setMenuOpen(null);
+        setConfirmDelete(null);
+    };
+
+    const addGroup = () => {
+        const name = `Group ${groups.length + 1}`;
+        setGroups(prev => [...prev, { id: `g-${Date.now()}`, name, collapsed: false, cards: [] }]);
+    };
+
+    return (
+        <TabsContent value="computations" className="flex-1 mt-0 overflow-y-auto">
+            {/* CQL input */}
+            <div className="px-3 pt-3 pb-2">
+                <div className="flex items-center gap-1.5">
+                    <input type="text" value={cqlInput} onChange={e => setCqlInput(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && addComputation()}
+                        placeholder="SUM(sales.revenue)"
+                        className="flex-1 min-w-0 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/40 outline-none border border-border/50 rounded-md px-2.5 py-1.5 font-mono focus:border-primary/50 transition-colors" />
+                    <button onClick={addComputation} disabled={!cqlInput.trim()}
+                        className="text-[10px] text-primary hover:text-primary/80 disabled:text-muted-foreground/30 transition-colors px-2 py-1.5 rounded-md border border-primary/20 hover:border-primary/40 disabled:border-border/30 shrink-0">
+                        Compute
+                    </button>
+                </div>
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                    {CQL_FUNCTIONS.slice(0, 6).map(fn => (
+                        <button key={fn} onClick={() => setCqlInput(fn + '(')}
+                            className="text-[9px] text-muted-foreground/60 hover:text-primary border border-border/30 hover:border-primary/30 rounded px-1.5 py-0.5 transition-colors font-mono">
+                            {fn}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Groups */}
+            <div className="px-3 pb-3 space-y-2">
+                {groups.map(group => (
+                    <div key={group.id} className="rounded-lg border border-border/40 overflow-hidden">
+                        {/* Group header */}
+                        <button onClick={() => toggleGroup(group.id)}
+                            className="w-full flex items-center gap-2 px-2.5 py-2 bg-muted/20 hover:bg-muted/40 transition-colors text-left">
+                            {group.collapsed
+                                ? <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                                : <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />}
+                            <span className="text-xs font-medium flex-1 truncate">{group.name}</span>
+                            <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">{group.cards.length}</span>
+                        </button>
+
+                        {/* Cards */}
+                        {!group.collapsed && (
+                            <div className="p-1.5 space-y-1.5">
+                                {group.cards.map(card => (
+                                    <div key={card.id}
+                                        className="relative rounded-md border border-border/30 border-l-2 border-l-primary/40 bg-card px-3 py-2">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-base font-semibold text-primary leading-tight">{card.value}</p>
+                                                <p className="text-[11px] text-foreground mt-0.5 truncate">{card.name}</p>
+                                                <p className="text-[10px] text-muted-foreground/60 font-mono mt-0.5 truncate">{card.expression}</p>
+                                            </div>
+                                            {/* ⋮ menu */}
+                                            <div className="relative shrink-0">
+                                                <button onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen === card.id ? null : card.id); setConfirmDelete(null); }}
+                                                    className="p-0.5 rounded text-muted-foreground/40 hover:text-foreground transition-colors">
+                                                    <MoreVertical className="h-3.5 w-3.5" />
+                                                </button>
+                                                {menuOpen === card.id && (
+                                                    <div className="absolute right-0 top-6 z-20 w-28 rounded-md border border-border bg-popover shadow-md py-0.5">
+                                                        {confirmDelete === card.id ? (
+                                                            <button onClick={() => deleteCard(group.id, card.id)}
+                                                                className="w-full text-left px-2.5 py-1.5 text-[11px] text-destructive hover:bg-destructive/10 transition-colors">
+                                                                Confirm?
+                                                            </button>
+                                                        ) : (
+                                                            <>
+                                                                <button onClick={() => setConfirmDelete(card.id)}
+                                                                    className="w-full text-left px-2.5 py-1.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
+                                                                    Delete
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                                {group.cards.length === 0 && (
+                                    <p className="px-2 py-3 text-[10px] text-muted-foreground/50 italic text-center">No computations in this group</p>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                ))}
+
+                {/* New Group button */}
+                <button onClick={addGroup}
+                    className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border border-dashed border-border/40 hover:border-primary/30 text-muted-foreground/60 hover:text-primary transition-colors">
+                    <Plus className="h-3 w-3" />
+                    <span className="text-[10px]">New Group</span>
+                </button>
+            </div>
+        </TabsContent>
     );
 }

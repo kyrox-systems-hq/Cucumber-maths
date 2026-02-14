@@ -1,4 +1,4 @@
-import { Plus, Table2, BarChart3, Type, Hash, Code2, Database, ListChecks, Layout, FileSearch, ArrowRightLeft, Play, MessageSquare, ClipboardCheck, ChevronRight, Eye, Pencil, Trash2, CheckCircle2, Calculator, X as XIcon, GripVertical } from 'lucide-react';
+import { Plus, Table2, BarChart3, Type, Hash, Code2, Database, ListChecks, Layout, FileSearch, ArrowRightLeft, Play, MessageSquare, ClipboardCheck, ChevronRight, Eye, Pencil, Trash2, CheckCircle2, X as XIcon, GripVertical } from 'lucide-react';
 import { cn } from '@client/lib/utils';
 import { useState } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@client/components/ui/tabs';
@@ -458,13 +458,7 @@ interface PanelRow {
     panelIds: number[];
 }
 
-interface FormulaCard {
-    id: string;
-    expression: string;
-    dataset: string;
-    value: string;
-    name: string;
-}
+
 
 function DataInspectionTab() {
     const [panels, setPanels] = useState<DataPanelState[]>([
@@ -474,11 +468,7 @@ function DataInspectionTab() {
     const [dragPanelId, setDragPanelId] = useState<number | null>(null);
     const [dropTarget, setDropTarget] = useState<string | null>(null);
 
-    /* Formula shelf state */
-    const [formulaCards, setFormulaCards] = useState<FormulaCard[]>([
-        { id: 'f1', expression: 'SUM(sales.revenue)', dataset: 'sales', value: '$6,965', name: 'total_revenue' },
-    ]);
-    const [formulaInput, setFormulaInput] = useState('');
+
 
     const addPanel = () => {
         const newId = nextPanelId++;
@@ -540,22 +530,7 @@ function DataInspectionTab() {
         setDragPanelId(null); setDropTarget(null);
     };
 
-    /* Formula shelf actions */
-    const addFormula = () => {
-        if (!formulaInput.trim()) return;
-        const expr = formulaInput.trim();
-        const match = expr.match(/^(\w+)\((\w+)\.(\w+)\)$/);
-        let value = '—';
-        let dataset = 'sales';
-        if (match) { const [, fn, ds, col] = match; dataset = ds; value = evalCQL(fn.toUpperCase(), col, ds); }
-        setFormulaCards(prev => [...prev, {
-            id: `fc-${Date.now()}`, expression: expr, dataset, value,
-            name: expr.toLowerCase().replace(/[^a-z0-9_]/g, '_'),
-        }]);
-        setFormulaInput('');
-    };
 
-    const removeFormula = (id: string) => { setFormulaCards(prev => prev.filter(c => c.id !== id)); };
 
     return (
         <div className="flex flex-col h-full">
@@ -630,41 +605,7 @@ function DataInspectionTab() {
                 })}
             </div>
 
-            {/* Bottom formula shelf */}
-            <div className="border-t border-border/50 bg-muted/5 shrink-0">
-                <div className="flex items-center gap-2 px-3 py-1.5">
-                    <Calculator className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Computations</span>
-                    <span className="text-[9px] text-muted-foreground/50">CQL</span>
-                </div>
-                <div className="px-3 pb-1.5">
-                    <div className="flex items-center gap-1.5">
-                        <input type="text" value={formulaInput} onChange={e => setFormulaInput(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && addFormula()}
-                            placeholder="SUM(sales.revenue) · AVG(customers.mrr) * COUNT(customers)"
-                            className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/40 outline-none border border-border/50 rounded-md px-2.5 py-1 font-mono focus:border-primary/50 transition-colors" />
-                        <button onClick={addFormula} disabled={!formulaInput.trim()}
-                            className="text-[10px] text-primary hover:text-primary/80 disabled:text-muted-foreground/30 transition-colors px-2 py-1 rounded-md border border-primary/20 hover:border-primary/40 disabled:border-border/30 shrink-0">
-                            Compute
-                        </button>
-                    </div>
-                </div>
-                {formulaCards.length > 0 && (
-                    <div className="px-3 pb-2 flex flex-wrap gap-1.5">
-                        {formulaCards.map(fc => (
-                            <div key={fc.id} className="inline-flex items-center gap-1.5 rounded-lg bg-accent/40 border border-border/30 px-2.5 py-1 text-xs font-mono group">
-                                <span className="text-muted-foreground text-[10px]">{fc.name}</span>
-                                <span className="text-foreground/60">=</span>
-                                <span className="text-primary font-medium">{fc.value}</span>
-                                <span className="text-muted-foreground/40 text-[9px]">({fc.expression})</span>
-                                <button onClick={() => removeFormula(fc.id)} className="text-muted-foreground/30 hover:text-destructive transition-colors ml-0.5 opacity-0 group-hover:opacity-100">
-                                    <XIcon className="h-3 w-3" />
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
+
         </div>
     );
 }
