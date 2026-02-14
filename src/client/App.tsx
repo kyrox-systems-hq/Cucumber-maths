@@ -9,14 +9,15 @@ import { useState } from 'react';
 export default function App() {
     const { chatSide, swapSidebars } = useLayoutPreference();
     const [centerTab, setCenterTab] = useState('data');
+    const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
 
     const scratchpadActive = centerTab === 'scratchpad';
 
     const leftPanel = chatSide === 'left'
         ? <ChatPanel scratchpadActive={scratchpadActive} />
-        : <DataPanel scratchpadActive={scratchpadActive} />;
+        : <DataPanel scratchpadActive={scratchpadActive} selectedTableId={selectedTableId} onSelectTable={setSelectedTableId} />;
     const rightPanel = chatSide === 'left'
-        ? <DataPanel scratchpadActive={scratchpadActive} />
+        ? <DataPanel scratchpadActive={scratchpadActive} selectedTableId={selectedTableId} onSelectTable={setSelectedTableId} />
         : <ChatPanel scratchpadActive={scratchpadActive} />;
 
     return (
@@ -35,7 +36,7 @@ export default function App() {
                     </Panel>
                     <Separator className="w-px bg-border hover:bg-primary/30 transition-colors duration-150 cursor-col-resize" />
                     <Panel id="center" defaultSize={55} minSize="30" className="h-full">
-                        <Canvas onTabChange={setCenterTab} />
+                        <Canvas onTabChange={setCenterTab} selectedTableId={selectedTableId} />
                     </Panel>
                     <Separator className="w-px bg-border hover:bg-primary/30 transition-colors duration-150 cursor-col-resize" />
                     <Panel

@@ -1,23 +1,45 @@
 import { useState, useRef } from 'react';
-import { Upload, Database, BarChart3, Hash, Type, Calendar, Cpu, Boxes, Calculator, ChevronDown, ChevronRight, MoreVertical, Plus, Maximize2, Minimize2, FileEdit } from 'lucide-react';
+import { Upload, Database, BarChart3, Table2, Hash, Type, Calendar, Cpu, Boxes, Calculator, ChevronDown, ChevronRight, MoreVertical, Plus, Maximize2, Minimize2, FileEdit, FileSpreadsheet, FileText } from 'lucide-react';
 import { cn } from '@client/lib/utils';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@client/components/ui/tabs';
 import { RichCommandInput } from '@client/components/ui/rich-command-input';
 
 /* ─── mock data ─── */
 
-const MOCK_DATASETS = [
-    { name: 'sales_q4.csv', rows: '12,847', cols: 14, size: '2.3 MB' },
-    { name: 'customers.parquet', rows: '84,201', cols: 22, size: '18 MB' },
-    { name: 'inventory.xlsx', rows: '3,415', cols: 8, size: '890 KB' },
+interface TableDef {
+    id: string;
+    name: string;
+    rows: string;
+    cols: number;
+}
+
+interface DataSource {
+    id: string;
+    name: string;
+    type: 'csv' | 'parquet' | 'xlsx';
+    size: string;
+    tables: TableDef[];
+}
+
+const DATA_SOURCES: DataSource[] = [
+    {
+        id: 'ds-sales', name: 'sales_q4.csv', type: 'csv', size: '2.3 MB',
+        tables: [{ id: 'sales', name: 'sales_q4', rows: '12,847', cols: 14 }],
+    },
+    {
+        id: 'ds-customers', name: 'customers.parquet', type: 'parquet', size: '18 MB',
+        tables: [{ id: 'customers', name: 'customers', rows: '84,201', cols: 22 }],
+    },
+    {
+        id: 'ds-inventory', name: 'inventory.xlsx', type: 'xlsx', size: '890 KB',
+        tables: [
+            { id: 'inventory', name: 'stock_levels', rows: '3,415', cols: 8 },
+            { id: 'inventory-reorder', name: 'reorder_history', rows: '1,280', cols: 6 },
+        ],
+    },
 ];
 
-const MOCK_COLUMNS = [
-    { name: 'revenue', type: 'numeric', icon: Hash, stats: 'μ 524.30 · σ 182.44' },
-    { name: 'region', type: 'categorical', icon: Type, stats: '6 unique' },
-    { name: 'order_date', type: 'datetime', icon: Calendar, stats: '2024-01-01 → 2024-12-31' },
-    { name: 'quantity', type: 'numeric', icon: Hash, stats: 'μ 42 · σ 15.8' },
-];
+const SOURCE_ICON = { csv: FileText, parquet: Database, xlsx: FileSpreadsheet } as const;
 
 const ENGINES = [
     { id: 'tabular', emoji: '🗄️', name: 'Tabular', tech: 'DuckDB', status: 'active' as const },
@@ -81,9 +103,12 @@ function evalCQL(fn: string, column: string, datasetId: string): string {
 interface DataPanelProps {
     className?: string;
     scratchpadActive?: boolean;
+    selectedTableId?: string | null;
+    onSelectTable?: (tableId: string) => void;
 }
 
-export function DataPanel({ className, scratchpadActive }: DataPanelProps) {
+export function DataPanel({ className, scratchpadActive, selectedTableId, onSelectTable }: DataPanelProps) {
+    const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set(DATA_SOURCES.map(ds => ds.id)));
     return (
         <div className={cn('flex flex-col h-full bg-card overflow-hidden', className)}>
             <Tabs defaultValue="sources" className="flex flex-col h-full">
@@ -114,7 +139,7 @@ export function DataPanel({ className, scratchpadActive }: DataPanelProps) {
                     </TabsList>
                 </div>
 
-                {/* Sources tab — existing DataPanel content */}
+                {/* Sources tab — Datasets → Tables tree + Computations */}
                 <TabsContent value="sources" className="flex-1 mt-0 overflow-y-auto">
                     {/* Upload zone */}
                     <div className="px-3 pt-3 pb-1">
@@ -126,53 +151,81 @@ export function DataPanel({ className, scratchpadActive }: DataPanelProps) {
                         </div>
                     </div>
 
-                    {/* Datasets */}
+                    {/* Datasets tree */}
                     <div className="px-3 pt-3">
                         <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
                             Datasets
                         </span>
                         <div className="mt-1.5 space-y-0.5">
-                            {MOCK_DATASETS.map(ds => (
-                                <button
-                                    key={ds.name}
-                                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left hover:bg-accent transition-colors duration-150 group"
-                                >
-                                    <BarChart3 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                                    <div className="min-w-0 flex-1">
-                                        <p className="text-xs font-medium truncate">{ds.name}</p>
-                                        <p className="text-[10px] text-muted-foreground font-mono">
-                                            {ds.rows} rows · {ds.cols} cols · {ds.size}
-                                        </p>
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Column profiling */}
-                    <div className="px-3 pt-4 pb-3">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
-                            Columns — sales_q4.csv
-                        </span>
-                        <div className="mt-1.5 space-y-0.5">
-                            {MOCK_COLUMNS.map(col => {
-                                const Icon = col.icon;
+                            {DATA_SOURCES.map(ds => {
+                                const SourceIcon = SOURCE_ICON[ds.type];
+                                const isExpanded = expandedSources.has(ds.id);
                                 return (
-                                    <div
-                                        key={col.name}
-                                        className="flex items-start gap-2 px-2 py-1.5 rounded-md hover:bg-accent transition-colors duration-150"
-                                    >
-                                        <Icon className="h-3 w-3 text-muted-foreground mt-0.5 shrink-0" />
-                                        <div className="min-w-0">
-                                            <p className="text-xs font-medium">{col.name}</p>
-                                            <p className="text-[10px] text-muted-foreground font-mono">{col.stats}</p>
-                                        </div>
-                                        <span className="ml-auto inline-flex items-center rounded-md border border-border px-1 py-0.5 text-[9px] text-muted-foreground shrink-0">
-                                            {col.type}
-                                        </span>
+                                    <div key={ds.id}>
+                                        {/* Dataset row */}
+                                        <button
+                                            onClick={() => setExpandedSources(prev => {
+                                                const next = new Set(prev);
+                                                next.has(ds.id) ? next.delete(ds.id) : next.add(ds.id);
+                                                return next;
+                                            })}
+                                            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left hover:bg-accent transition-colors duration-150 group"
+                                        >
+                                            {isExpanded
+                                                ? <ChevronDown className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+                                                : <ChevronRight className="h-3 w-3 text-muted-foreground/50 shrink-0" />}
+                                            <SourceIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-xs font-medium truncate">{ds.name}</p>
+                                                <p className="text-[10px] text-muted-foreground font-mono">
+                                                    {ds.tables.length} {ds.tables.length === 1 ? 'table' : 'tables'} · {ds.size}
+                                                </p>
+                                            </div>
+                                        </button>
+                                        {/* Child tables */}
+                                        {isExpanded && (
+                                            <div className="ml-5 mt-0.5 space-y-0.5">
+                                                {ds.tables.map(tbl => (
+                                                    <button
+                                                        key={tbl.id}
+                                                        onClick={() => onSelectTable?.(tbl.id)}
+                                                        className={cn(
+                                                            'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors duration-150',
+                                                            selectedTableId === tbl.id
+                                                                ? 'bg-primary/10 border border-primary/30 text-primary'
+                                                                : 'hover:bg-accent',
+                                                        )}
+                                                    >
+                                                        <Table2 className={cn('h-3 w-3 shrink-0', selectedTableId === tbl.id ? 'text-primary' : 'text-muted-foreground/60')} />
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className={cn('text-xs truncate', selectedTableId === tbl.id ? 'font-semibold' : 'font-medium')}>{tbl.name}</p>
+                                                            <p className="text-[10px] text-muted-foreground font-mono">
+                                                                {tbl.rows} rows · {tbl.cols} cols
+                                                            </p>
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}
+                        </div>
+                    </div>
+
+                    {/* Computations summary (read-only) */}
+                    <div className="px-3 pt-4 pb-3">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
+                            Computations
+                        </span>
+                        <div className="mt-1.5 space-y-0.5">
+                            {INITIAL_GROUPS.map(group => (
+                                <div key={group.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent transition-colors duration-150 cursor-pointer">
+                                    <Calculator className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+                                    <span className="text-xs font-medium truncate flex-1">{group.name}</span>
+                                    <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">{group.cards.length}</span>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </TabsContent>

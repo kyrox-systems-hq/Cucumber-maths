@@ -127,9 +127,10 @@ const MOCK_PREVIEW: PreviewStep[] | null = [
 interface CanvasProps {
     className?: string;
     onTabChange?: (tab: string) => void;
+    selectedTableId?: string | null;
 }
 
-export function Canvas({ className, onTabChange }: CanvasProps) {
+export function Canvas({ className, onTabChange, selectedTableId }: CanvasProps) {
     // In a real app, `hasPlan` would come from a global store/context
     // Toggle this to simulate an active execution preview
     const [hasPlan, setHasPlan] = useState(true);
@@ -213,7 +214,7 @@ export function Canvas({ className, onTabChange }: CanvasProps) {
 
                 {/* Data tab */}
                 <TabsContent value="data" className="flex-1 mt-0 overflow-y-auto">
-                    <DataInspectionTab />
+                    <DataInspectionTab selectedTableId={selectedTableId ?? null} />
                 </TabsContent>
 
                 {/* Ledger tab */}
@@ -415,6 +416,24 @@ const SAMPLE_DATASETS: DatasetDef[] = [
             category: { unique: 2, top: 'Hardware', frequency: 2 },
         },
     },
+    {
+        id: 'inventory-reorder', name: 'reorder_history',
+        headers: ['reorder_id', 'sku', 'qty_ordered', 'order_date', 'supplier', 'status'],
+        columnTypes: ['id', 'id', 'numeric', 'date', 'text', 'text'],
+        rows: [
+            ['RO-001', 'SKU-002', '100', '2024-09-15', 'TechParts Inc.', 'Delivered'],
+            ['RO-002', 'SKU-004', '50', '2024-10-01', 'ModuleCo', 'In Transit'],
+            ['RO-003', 'SKU-002', '75', '2024-10-20', 'TechParts Inc.', 'Pending'],
+            ['RO-004', 'SKU-001', '200', '2024-11-05', 'WidgetWorks', 'Pending'],
+        ],
+        numericStats: {
+            qty_ordered: { mean: 106.25, median: 87.5, mode: 0, std: 65, min: 50, max: 200, nulls: 0 },
+        },
+        categoricalStats: {
+            supplier: { unique: 3, top: 'TechParts Inc.', frequency: 2 },
+            status: { unique: 3, top: 'Pending', frequency: 2 },
+        },
+    },
 ];
 
 const STAGES = [
@@ -480,8 +499,7 @@ interface PanelRow {
 }
 
 
-
-function DataInspectionTab() {
+function DataInspectionTab({ selectedTableId }: { selectedTableId: string | null }) {
     const [panels, setPanels] = useState<DataPanelState[]>([
         { id: 1, datasetId: 'sales', stage: 'raw', selectedColumn: null, filters: [], calculations: [] },
     ]);
@@ -491,10 +509,18 @@ function DataInspectionTab() {
 
 
 
+    const [addError, setAddError] = useState<string | null>(null);
+
     const addPanel = () => {
+        if (!selectedTableId) {
+            setAddError('Select a table from Sources first');
+            setTimeout(() => setAddError(null), 3000);
+            return;
+        }
+        setAddError(null);
         const newId = nextPanelId++;
         const newPanel: DataPanelState = {
-            id: newId, datasetId: 'sales', stage: 'raw',
+            id: newId, datasetId: selectedTableId, stage: 'raw',
             selectedColumn: null, filters: [], calculations: [],
         };
         setPanels(prev => [...prev, newPanel]);
@@ -565,6 +591,9 @@ function DataInspectionTab() {
                 <button onClick={addPanel} className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors duration-150 px-2 py-0.5 rounded-md hover:bg-accent">
                     <Plus className="h-3 w-3" /> Add Panel
                 </button>
+                {addError && (
+                    <span className="text-[10px] text-destructive animate-pulse">{addError}</span>
+                )}
             </div>
 
             {/* Row-based panel grid */}
@@ -706,15 +735,9 @@ function SingleDataPanel({
                 onDragEnd={onDragEnd}
             >
                 <GripVertical className="h-3 w-3 text-muted-foreground/30 shrink-0" />
-                <select
-                    value={panel.datasetId}
-                    onChange={e => onUpdate({ datasetId: e.target.value, selectedColumn: null, filters: [], calculations: [] })}
-                    className="bg-transparent text-[11px] font-medium text-foreground outline-none cursor-pointer min-w-0 max-w-[110px] truncate"
-                    title={dataset.name}
-                    onClick={e => e.stopPropagation()}
-                >
-                    {SAMPLE_DATASETS.map(ds => (<option key={ds.id} value={ds.id}>{ds.name}</option>))}
-                </select>
+                <span className="text-[11px] font-medium text-foreground truncate" title={dataset.name}>
+                    {dataset.name}
+                </span>
                 <div className="flex items-center gap-0.5 shrink-0">
                     {STAGES.map(s => (
                         <button key={s.id} onClick={() => onUpdate({ stage: s.id })}
