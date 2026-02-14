@@ -962,17 +962,37 @@ function SingleDataPanel({
                                     <Plus className="h-3.5 w-3.5" />
                                 </button>
                                 {showAddColumn && (
-                                    <div className="absolute right-0 top-8 z-20 w-64 rounded-md border border-border bg-popover shadow-lg p-2.5 space-y-2" onClick={e => e.stopPropagation()}>
+                                    <div className="fixed z-50 w-72 rounded-md border border-border bg-popover shadow-lg p-2.5 space-y-2"
+                                        onClick={e => e.stopPropagation()}
+                                        style={{ top: 'auto', bottom: 'auto' }}
+                                        ref={el => {
+                                            if (!el) return;
+                                            const btn = el.previousElementSibling as HTMLElement;
+                                            if (!btn) return;
+                                            const rect = btn.getBoundingClientRect();
+                                            const spaceBelow = window.innerHeight - rect.bottom;
+                                            if (spaceBelow < 320) {
+                                                el.style.bottom = `${window.innerHeight - rect.top + 4}px`;
+                                                el.style.top = 'auto';
+                                            } else {
+                                                el.style.top = `${rect.bottom + 4}px`;
+                                                el.style.bottom = 'auto';
+                                            }
+                                            el.style.right = `${window.innerWidth - rect.right}px`;
+                                        }}
+                                    >
                                         <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">New Computed Column</p>
-                                        <input value={newColName} onChange={e => setNewColName(e.target.value)}
-                                            placeholder="Column name" autoFocus
-                                            className="w-full bg-transparent border border-border/50 rounded px-2 py-1 text-[11px] outline-none focus:border-primary/50 placeholder:text-muted-foreground/40" />
-                                        <div>
-                                            <label className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Expression</label>
+
+                                        {/* DAX-style: column_name = expression */}
+                                        <div className="flex items-center gap-1.5">
+                                            <input value={newColName} onChange={e => setNewColName(e.target.value)}
+                                                placeholder="Name" autoFocus
+                                                className="w-20 shrink-0 bg-transparent border border-border/50 rounded px-2 py-1 text-[11px] outline-none focus:border-primary/50 placeholder:text-muted-foreground/40" />
+                                            <span className="text-[13px] font-mono text-muted-foreground/60 shrink-0">=</span>
                                             <input value={newColExpr} onChange={e => setNewColExpr(e.target.value)}
                                                 onKeyDown={e => { if (e.key === 'Enter') addComputedColumn(); if (e.key === 'Escape') setShowAddColumn(false); }}
-                                                placeholder="e.g. revenue / units"
-                                                className="w-full bg-transparent border border-border/50 rounded px-2 py-1 text-[11px] font-mono outline-none focus:border-primary/50 placeholder:text-muted-foreground/40 mt-0.5" />
+                                                placeholder="Expression"
+                                                className="flex-1 min-w-0 bg-transparent border border-border/50 rounded px-2 py-1 text-[11px] font-mono outline-none focus:border-primary/50 placeholder:text-muted-foreground/40" />
                                         </div>
 
                                         {/* Column chips */}
