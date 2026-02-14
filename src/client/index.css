@@ -261,10 +261,3 @@ body {
     background: hsl(187 80% 55% / 0.1);
     border-color: hsl(187 80% 55% / 0.2);
 }
-
-/* Placeholder for empty contenteditable */
-.rich-command-input:empty::before {
-    content: attr(data-placeholder);
-    color: hsl(var(--muted-foreground) / 0.3);
-    pointer-events: none;
-}

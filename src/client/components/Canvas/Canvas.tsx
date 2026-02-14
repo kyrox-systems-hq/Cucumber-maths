@@ -873,7 +873,7 @@ function SingleDataPanel({
                             <input type="text" value={filterInput} onChange={e => setFilterInput(e.target.value)}
                                 onKeyDown={e => e.key === 'Enter' && addExpressionFilter()}
                                 placeholder="revenue > mean(revenue)"
-                                className="flex-1 min-w-0 bg-transparent text-[11px] text-foreground placeholder:text-muted-foreground/50 outline-none border border-border/50 rounded px-2 py-0.5 focus:border-primary/50" />
+                                className="flex-1 min-w-0 bg-transparent text-[11px] text-foreground placeholder:text-muted-foreground outline-none border border-border/50 rounded px-2 py-0.5 focus:border-primary/50" />
                             <button onClick={addExpressionFilter} disabled={!filterInput.trim()}
                                 className="text-[10px] text-primary hover:text-primary/80 disabled:text-muted-foreground/30 transition-colors px-1.5 shrink-0">Apply</button>
                         </div>
@@ -985,7 +985,7 @@ function SingleDataPanel({
                                         <div className="flex items-center gap-1">
                                             <input value={newColName} onChange={e => setNewColName(e.target.value)}
                                                 placeholder="Column name" autoFocus
-                                                className="flex-1 min-w-0 bg-transparent border border-border/50 rounded px-2 py-1 text-[11px] outline-none focus:border-primary/50 placeholder:text-muted-foreground/40" />
+                                                className="flex-1 min-w-0 bg-transparent border border-border/50 rounded px-2 py-1 text-[11px] outline-none focus:border-primary/50 placeholder:text-muted-foreground" />
                                             <span className="text-[13px] font-mono text-muted-foreground/60 shrink-0">=</span>
                                         </div>
 
@@ -993,7 +993,7 @@ function SingleDataPanel({
                                         <div className="border border-border/50 rounded focus-within:border-primary/50 transition-colors">
                                             <RichCommandInput
                                                 onChange={setNewColExpr}
-                                                placeholder="Expression…"
+                                                placeholder="Expression"
                                                 className="w-full"
                                                 editorClassName="text-[11px]"
                                                 minHeight="28px"
@@ -1446,6 +1446,7 @@ function ScratchpadTab() {
                     placeholder="Write freely — type / for CQL commands, @ for data references…"
                     editorClassName="text-sm"
                     minHeight="300px"
+                    cqlOnly
                     onKeyDown={e => {
                         if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
                             e.preventDefault();
