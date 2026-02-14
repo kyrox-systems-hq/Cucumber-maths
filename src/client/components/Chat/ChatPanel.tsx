@@ -176,16 +176,18 @@ export function ChatPanel({ className, scratchpadActive }: ChatPanelProps) {
                             </div>
                         ) : (
                             <div className={cn(
-                                'flex gap-2 rounded-[10px] border border-border bg-background px-3 py-2 focus-within:border-primary/50 transition-all duration-200',
-                                expanded ? 'flex-col' : 'items-center',
+                                'flex rounded-[10px] border border-border bg-background px-3 py-2 focus-within:border-primary/50 transition-all duration-200',
+                                expanded ? 'flex-col gap-2' : 'items-center gap-2',
                             )}>
                                 <RichCommandInput
                                     editorRef={editorRef}
                                     onChange={setInput}
                                     placeholder={expanded ? 'Write a complex query or multi-paragraph prompt… type / for CQL' : 'Ask anything… type / for CQL, @ for data'}
-                                    editorClassName="flex-1 text-xs"
+                                    className="flex-1 min-w-0"
+                                    editorClassName="text-xs"
                                     minHeight={expanded ? '120px' : '20px'}
                                     autoFocus={expanded}
+                                    popupDirection="up"
                                     onKeyDown={e => {
                                         if (expanded && e.key === 'Escape') { setExpanded(false); }
                                         if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && input.trim()) {

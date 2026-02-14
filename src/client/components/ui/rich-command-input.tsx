@@ -9,23 +9,24 @@ export interface CommandItem {
     description: string;
     category: string;
     insert: string;        // what gets inserted as styled token text
+    hasArgs?: boolean;      // if true, insert opens with ( and user types args, then closes with )
 }
 
 const CQL_COMMANDS: CommandItem[] = [
-    { id: 'sum', label: 'SUM', description: 'Sum numeric values', category: 'Aggregate', insert: 'SUM()' },
-    { id: 'count', label: 'COUNT', description: 'Count records', category: 'Aggregate', insert: 'COUNT()' },
-    { id: 'avg', label: 'AVG', description: 'Average value', category: 'Aggregate', insert: 'AVG()' },
-    { id: 'min', label: 'MIN', description: 'Minimum value', category: 'Aggregate', insert: 'MIN()' },
-    { id: 'max', label: 'MAX', description: 'Maximum value', category: 'Aggregate', insert: 'MAX()' },
-    { id: 'where', label: 'WHERE', description: 'Filter rows', category: 'Filter', insert: 'WHERE ' },
-    { id: 'group-by', label: 'GROUP BY', description: 'Group results by field', category: 'Group', insert: 'GROUP BY ' },
-    { id: 'order-by', label: 'ORDER BY', description: 'Sort results', category: 'Sort', insert: 'ORDER BY ' },
-    { id: 'join', label: 'JOIN', description: 'Join two data sources', category: 'Join', insert: 'JOIN ' },
-    { id: 'pivot', label: 'PIVOT', description: 'Pivot table transformation', category: 'Transform', insert: 'PIVOT ' },
-    { id: 'select', label: 'SELECT', description: 'Select specific columns', category: 'Query', insert: 'SELECT ' },
-    { id: 'distinct', label: 'DISTINCT', description: 'Remove duplicates', category: 'Filter', insert: 'DISTINCT ' },
-    { id: 'create-table', label: 'CREATE TABLE', description: 'Create a new data table', category: 'DDL', insert: 'CREATE TABLE ' },
-    { id: 'compute', label: 'COMPUTE', description: 'Run computation chain', category: 'Transform', insert: 'COMPUTE ' },
+    { id: 'sum', label: 'SUM', description: 'Sum numeric values', category: 'Aggregate', insert: 'SUM', hasArgs: true },
+    { id: 'count', label: 'COUNT', description: 'Count records', category: 'Aggregate', insert: 'COUNT', hasArgs: true },
+    { id: 'avg', label: 'AVG', description: 'Average value', category: 'Aggregate', insert: 'AVG', hasArgs: true },
+    { id: 'min', label: 'MIN', description: 'Minimum value', category: 'Aggregate', insert: 'MIN', hasArgs: true },
+    { id: 'max', label: 'MAX', description: 'Maximum value', category: 'Aggregate', insert: 'MAX', hasArgs: true },
+    { id: 'where', label: 'WHERE', description: 'Filter rows', category: 'Filter', insert: 'WHERE' },
+    { id: 'group-by', label: 'GROUP BY', description: 'Group results by field', category: 'Group', insert: 'GROUP BY' },
+    { id: 'order-by', label: 'ORDER BY', description: 'Sort results', category: 'Sort', insert: 'ORDER BY' },
+    { id: 'join', label: 'JOIN', description: 'Join two data sources', category: 'Join', insert: 'JOIN' },
+    { id: 'pivot', label: 'PIVOT', description: 'Pivot table transformation', category: 'Transform', insert: 'PIVOT' },
+    { id: 'select', label: 'SELECT', description: 'Select specific columns', category: 'Query', insert: 'SELECT' },
+    { id: 'distinct', label: 'DISTINCT', description: 'Remove duplicates', category: 'Filter', insert: 'DISTINCT' },
+    { id: 'create-table', label: 'CREATE TABLE', description: 'Create a new data table', category: 'DDL', insert: 'CREATE TABLE' },
+    { id: 'compute', label: 'COMPUTE', description: 'Run computation chain', category: 'Transform', insert: 'COMPUTE' },
 ];
 
 const DATA_REFERENCES: CommandItem[] = [
@@ -44,7 +45,7 @@ const DATA_REFERENCES: CommandItem[] = [
 /* ─── Props ─── */
 
 export interface RichCommandInputProps {
-    /** Called whenever the text content changes (plain text with embedded tokens) */
+    /** Called whenever the text content changes */
     onChange?: (text: string) => void;
     /** Placeholder shown when the editor is empty */
     placeholder?: string;
@@ -54,7 +55,7 @@ export interface RichCommandInputProps {
     editorClassName?: string;
     /** Whether the input is disabled */
     disabled?: boolean;
-    /** Keyboard shortcut handler — receives the KeyboardEvent for custom dispatch */
+    /** Keyboard shortcut handler */
     onKeyDown?: (e: React.KeyboardEvent) => void;
     /** Whether to auto-focus */
     autoFocus?: boolean;
@@ -62,6 +63,10 @@ export interface RichCommandInputProps {
     minHeight?: string;
     /** Ref forwarding for the contenteditable div */
     editorRef?: React.RefObject<HTMLDivElement | null>;
+    /** Direction the popup opens: 'up' = above input (for bottom-of-screen), 'down' = below (for top-of-screen) */
+    popupDirection?: 'up' | 'down';
+    /** If true, only CQL is allowed — every keystroke shows the command picker if not in an expression. No free prose. */
+    cqlOnly?: boolean;
 }
 
 /* ─── Component ─── */
@@ -76,13 +81,18 @@ export function RichCommandInput({
     autoFocus = false,
     minHeight = '36px',
     editorRef: externalRef,
+    popupDirection = 'down',
+    cqlOnly = false,
 }: RichCommandInputProps) {
     const internalRef = useRef<HTMLDivElement>(null);
     const ref = externalRef || internalRef;
 
-    /* ─── slash / @ popup state ─── */
-    const [popup, setPopup] = useState<{ type: 'slash' | 'at'; filter: string; caretRect: DOMRect | null } | null>(null);
+    /* ─── popup state ─── */
+    const [popup, setPopup] = useState<{ type: 'slash' | 'at'; filter: string } | null>(null);
     const [selectedIdx, setSelectedIdx] = useState(0);
+
+    /* ─── expression tracking: are we inside an open CQL expression? ─── */
+    const [inExpression, setInExpression] = useState(false);
 
     const items = popup
         ? (popup.type === 'slash' ? CQL_COMMANDS : DATA_REFERENCES).filter(
@@ -94,15 +104,6 @@ export function RichCommandInput({
     useEffect(() => {
         if (autoFocus && ref.current) ref.current.focus();
     }, [autoFocus, ref]);
-
-    /* ─── get caret world position ─── */
-    const getCaretRect = useCallback((): DOMRect | null => {
-        const sel = window.getSelection();
-        if (!sel || sel.rangeCount === 0) return null;
-        const range = sel.getRangeAt(0);
-        const clientRect = range.getBoundingClientRect();
-        return clientRect.width === 0 && clientRect.height === 0 ? null : clientRect;
-    }, []);
 
     /* ─── insert styled token ─── */
     const insertToken = useCallback((item: CommandItem, triggerType: 'slash' | 'at') => {
@@ -118,20 +119,22 @@ export function RichCommandInput({
         const offset = range.startOffset;
         if (node.nodeType === Node.TEXT_NODE && node.textContent) {
             const text = node.textContent;
-            // Find the trigger char position (searching backwards)
             const triggerChar = triggerType === 'slash' ? '/' : '@';
             let triggerPos = -1;
             for (let i = offset - 1; i >= 0; i--) {
                 if (text[i] === triggerChar) { triggerPos = i; break; }
             }
             if (triggerPos >= 0) {
-                // Delete from trigger to current offset
                 node.textContent = text.slice(0, triggerPos) + text.slice(offset);
-                // Set caret at triggerPos
                 range.setStart(node, triggerPos);
                 range.setEnd(node, triggerPos);
                 sel.removeAllRanges();
                 sel.addRange(range);
+            }
+        } else if (cqlOnly) {
+            // In cqlOnly mode there is no trigger char — clear the filter text
+            if (node.nodeType === Node.TEXT_NODE && node.textContent) {
+                node.textContent = '';
             }
         }
 
@@ -146,36 +149,88 @@ export function RichCommandInput({
         const insertRange = sel.getRangeAt(0);
         insertRange.insertNode(span);
 
-        // Add a trailing space after the token so the user can keep typing
-        const space = document.createTextNode('\u00A0');
-        span.parentNode?.insertBefore(space, span.nextSibling);
-
-        // Move caret after the space
-        const newRange = document.createRange();
-        newRange.setStartAfter(space);
-        newRange.setEndAfter(space);
-        sel.removeAllRanges();
-        sel.addRange(newRange);
+        // If hasArgs, add open bracket after token (user types args, then closes with ))
+        if (item.hasArgs) {
+            const openParen = document.createTextNode('(');
+            span.parentNode?.insertBefore(openParen, span.nextSibling);
+            // Move caret after the open bracket — user types args here
+            const newRange = document.createRange();
+            newRange.setStartAfter(openParen);
+            newRange.setEndAfter(openParen);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+            // We are now inside a CQL expression
+            setInExpression(true);
+        } else {
+            // Add a trailing space after the token
+            const space = document.createTextNode('\u00A0');
+            span.parentNode?.insertBefore(space, span.nextSibling);
+            const newRange = document.createRange();
+            newRange.setStartAfter(space);
+            newRange.setEndAfter(space);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+        }
 
         setPopup(null);
         setSelectedIdx(0);
 
         // Fire change
-        if (onChange && el.textContent) {
-            onChange(el.textContent);
+        if (onChange) {
+            onChange(el.innerText || '');
         }
-    }, [ref, onChange]);
+    }, [ref, onChange, cqlOnly]);
+
+    /* ─── detect CQL context from text content ─── */
+    const detectExpressionState = useCallback((el: HTMLElement) => {
+        const text = el.innerText || '';
+        // Count unmatched open parens
+        let depth = 0;
+        for (const ch of text) {
+            if (ch === '(') depth++;
+            if (ch === ')') depth = Math.max(0, depth - 1);
+        }
+        setInExpression(depth > 0);
+    }, []);
 
     /* ─── input handler — detect trigger chars ─── */
     const handleInput = useCallback(() => {
         const el = ref.current;
         if (!el) return;
 
-        // Notify parent of content change
         const text = el.innerText || '';
         onChange?.(text);
 
-        // Check if we're in a trigger context
+        // Track expression state (open parens)
+        detectExpressionState(el);
+
+        // In cqlOnly mode, always show the command picker when not in an expression
+        if (cqlOnly) {
+            const sel = window.getSelection();
+            const caretNode = sel?.rangeCount ? sel.getRangeAt(0).startContainer : null;
+            const caretOffset = sel?.rangeCount ? sel.getRangeAt(0).startOffset : 0;
+            const textBefore = (caretNode?.nodeType === Node.TEXT_NODE ? caretNode.textContent?.slice(0, caretOffset) : '') || '';
+            // Get the last word being typed as filter
+            const lastWord = textBefore.match(/([a-zA-Z_ ]*)$/)?.[1] || '';
+
+            // If not in an expression, show CQL picker
+            const currentDepth = (() => { let d = 0; for (const ch of text) { if (ch === '(') d++; if (ch === ')') d = Math.max(0, d - 1); } return d; })();
+            if (currentDepth === 0 && text.trim().length > 0) {
+                setPopup({ type: 'slash', filter: lastWord.trim() });
+                setSelectedIdx(0);
+                return;
+            }
+            // Inside expression — show @ references for data fields
+            if (currentDepth > 0) {
+                setPopup({ type: 'at', filter: lastWord.trim() });
+                setSelectedIdx(0);
+                return;
+            }
+            setPopup(null);
+            return;
+        }
+
+        // Standard mode — detect / and @ triggers
         const sel = window.getSelection();
         if (!sel || sel.rangeCount === 0) return;
         const range = sel.getRangeAt(0);
@@ -188,8 +243,7 @@ export function RichCommandInput({
             // Check for / trigger
             const slashMatch = textBefore.match(/\/([a-zA-Z ]*)$/);
             if (slashMatch) {
-                const caretRect = getCaretRect();
-                setPopup({ type: 'slash', filter: slashMatch[1], caretRect });
+                setPopup({ type: 'slash', filter: slashMatch[1] });
                 setSelectedIdx(0);
                 return;
             }
@@ -197,18 +251,16 @@ export function RichCommandInput({
             // Check for @ trigger
             const atMatch = textBefore.match(/@([a-zA-Z_]*)$/);
             if (atMatch) {
-                const caretRect = getCaretRect();
-                setPopup({ type: 'at', filter: atMatch[1], caretRect });
+                setPopup({ type: 'at', filter: atMatch[1] });
                 setSelectedIdx(0);
                 return;
             }
         }
 
-        // No trigger context — close popup
         setPopup(null);
-    }, [ref, onChange, getCaretRect]);
+    }, [ref, onChange, cqlOnly, detectExpressionState]);
 
-    /* ─── key handler (arrow nav + enter selection) ─── */
+    /* ─── key handler ─── */
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         if (popup && items.length > 0) {
             if (e.key === 'ArrowDown') {
@@ -233,24 +285,23 @@ export function RichCommandInput({
             }
         }
 
-        // Forward to parent handler
-        onKeyDown?.(e);
-    }, [popup, items, selectedIdx, insertToken, onKeyDown]);
+        // In expression mode, closing bracket exits expression
+        if (inExpression && e.key === ')') {
+            // Allow the ) to be typed normally — detectExpressionState will update on next input
+        }
 
-    /* ─── popup position ─── */
-    const popupStyle: React.CSSProperties | undefined = popup?.caretRect && ref.current
-        ? (() => {
-            const containerRect = ref.current.getBoundingClientRect();
-            return {
-                position: 'fixed' as const,
-                left: popup.caretRect.left,
-                top: popup.caretRect.bottom + 4,
-                zIndex: 100,
-            };
-        })()
-        : popup
-            ? { position: 'absolute' as const, bottom: '100%', left: 0, marginBottom: 4, zIndex: 100 }
-            : undefined;
+        // In cqlOnly mode: if not in expression and no popup, trigger popup on any letter
+        if (cqlOnly && !popup && !inExpression) {
+            // Let the character be typed, handleInput will show the popup
+        }
+
+        onKeyDown?.(e);
+    }, [popup, items, selectedIdx, insertToken, onKeyDown, inExpression, cqlOnly]);
+
+    /* ─── popup positioning ─── */
+    const popupPositionClass = popupDirection === 'up'
+        ? 'bottom-full left-0 mb-1'
+        : 'top-full left-0 mt-1';
 
     return (
         <div className={cn('relative', className)}>
@@ -267,16 +318,19 @@ export function RichCommandInput({
                     'outline-none text-sm text-foreground leading-relaxed whitespace-pre-wrap break-words',
                     'empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/30 empty:before:pointer-events-none',
                     disabled && 'opacity-40 pointer-events-none',
+                    cqlOnly && 'font-mono',
                     editorClassName,
                 )}
                 style={{ minHeight }}
             />
 
-            {/* Popup */}
+            {/* Popup — positioned via CSS class, not fixed coordinates */}
             {popup && items.length > 0 && (
                 <div
-                    style={popupStyle}
-                    className="w-[260px] max-h-[240px] overflow-y-auto rounded-lg border border-border bg-popover shadow-xl py-1"
+                    className={cn(
+                        'absolute w-[260px] max-h-[240px] overflow-y-auto rounded-lg border border-border bg-popover shadow-xl py-1 z-50',
+                        popupPositionClass,
+                    )}
                 >
                     <div className="px-2.5 py-1.5 border-b border-border/30">
                         <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -293,7 +347,7 @@ export function RichCommandInput({
                             )}
                         >
                             <span className={cn(
-                                'shrink-0 text-[11px] font-mono font-semibold mt-0.5',
+                                'shrink-0 text-[11px] font-mono mt-0.5',
                                 popup.type === 'slash' ? 'text-primary' : 'text-cyan-400',
                             )}>
                                 {item.label}

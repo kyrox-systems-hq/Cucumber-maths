@@ -242,9 +242,9 @@ body {
 /* ── Rich Command Input — CQL tokens ─── */
 .cql-token {
     display: inline;
-    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-family: 'Geist Mono', monospace;
     font-size: 0.8em;
-    font-weight: 600;
+    font-weight: 400;
     color: hsl(var(--primary));
     background: hsl(var(--primary) / 0.1);
     border: 1px solid hsl(var(--primary) / 0.2);

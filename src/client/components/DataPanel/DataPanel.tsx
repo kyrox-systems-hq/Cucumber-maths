@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Upload, Database, BarChart3, Hash, Type, Calendar, Cpu, Boxes, Calculator, ChevronDown, ChevronRight, MoreVertical, Plus, Maximize2, Minimize2, FileEdit } from 'lucide-react';
 import { cn } from '@client/lib/utils';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@client/components/ui/tabs';
+import { RichCommandInput } from '@client/components/ui/rich-command-input';
 
 /* ─── mock data ─── */
 
@@ -288,27 +289,25 @@ function ComputationsTab({ scratchpadActive }: { scratchpadActive?: boolean }) {
                             'flex gap-1.5 border border-border/50 rounded-md px-2.5 py-1.5 focus-within:border-primary/50 transition-all duration-200',
                             expanded ? 'flex-col' : 'items-center',
                         )}>
-                            {expanded ? (
-                                <textarea
-                                    value={cqlInput}
-                                    onChange={e => setCqlInput(e.target.value)}
-                                    onKeyDown={e => {
-                                        if (e.key === 'Escape') { setExpanded(false); }
-                                        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                                            e.preventDefault(); addComputation();
-                                        }
-                                    }}
-                                    placeholder="Write a multi-line CQL expression…"
-                                    className="flex-1 min-w-0 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/40 outline-none resize-none font-mono leading-relaxed"
-                                    style={{ minHeight: '100px', maxHeight: '40vh' }}
-                                    autoFocus
-                                />
-                            ) : (
-                                <input type="text" value={cqlInput} onChange={e => setCqlInput(e.target.value)}
-                                    onKeyDown={e => e.key === 'Enter' && addComputation()}
-                                    placeholder="SUM(sales.revenue)"
-                                    className="flex-1 min-w-0 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/40 outline-none font-mono" />
-                            )}
+                            <RichCommandInput
+                                onChange={setCqlInput}
+                                placeholder="Type to search CQL commands…"
+                                className="flex-1 min-w-0"
+                                editorClassName="text-xs"
+                                minHeight={expanded ? '100px' : '20px'}
+                                autoFocus={expanded}
+                                popupDirection="down"
+                                cqlOnly
+                                onKeyDown={e => {
+                                    if (expanded && e.key === 'Escape') { setExpanded(false); }
+                                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                                        e.preventDefault(); addComputation();
+                                    }
+                                    if (!expanded && e.key === 'Enter' && cqlInput.trim()) {
+                                        e.preventDefault(); addComputation();
+                                    }
+                                }}
+                            />
                             <div className="flex items-center gap-1 shrink-0 self-end">
                                 <button
                                     onClick={() => setExpanded(!expanded)}
@@ -406,6 +405,6 @@ function ComputationsTab({ scratchpadActive }: { scratchpadActive?: boolean }) {
                     <span className="text-[10px]">New Group</span>
                 </button>
             </div>
-        </TabsContent>
+        </TabsContent >
     );
 }
