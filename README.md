@@ -18,6 +18,12 @@ An alternative to Excel, Power BI, MATLAB, and R — built from scratch for AI a
 └──────────────────────────────────────────────┘
 ```
 
+## Product Direction
+
+The original product vision remains in [docs/VISION.md](docs/VISION.md).
+
+The current next-generation architecture direction is documented in [docs/NEXT_GENERATION_ARCHITECTURE.md](docs/NEXT_GENERATION_ARCHITECTURE.md). It reframes Cucumber around a fluid semantic document, polymorphic computational objects, an analytical state graph, first-class assumptions, active verification and a computation/provenance ledger.
+
 ## Quick Start
 
 ```bash
